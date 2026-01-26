@@ -1,0 +1,169 @@
+<DragDropContext onDragEnd={onDragEnd}>
+        <div className="flex flex-col lg:flex-row gap-8 items-start">
+          {/* LEFT COLUMN */}
+          <div className="flex-1 flex h-full flex-col">
+            <div className="mb-8 bg-white border border-indigo-100 p-8 rounded-3xl shadow-sm text-center relative overflow-hidden">
+              <span className="text-indigo-900 font-bold text-xs uppercase tracking-widest">To Be Budgeted</span>
+              <div className="mt-3"><span className={`text-5xl font-extrabold ${unallocatedFunds < 0 ? 'text-rose-500' : 'text-indigo-600'}`}>${unallocatedFunds.toLocaleString()}</span></div>
+            </div>
+
+            <div className="flex justify-center items-center gap-4 mb-6">
+              <div className="flex items-center gap-3 bg-white p-2 pl-4 rounded-full border border-gray-100 shadow-sm">
+                <span className="text-xs font-bold text-gray-400 uppercase tracking-wide">Transfer Amount</span>
+                <span className="font-bold text-gray-800">$</span>
+                <input type="number" value={transferAmount} onChange={e => setTransferAmount(e.target.value)} className="w-16 font-bold bg-transparent focus:outline-none text-gray-800" />
+              </div>
+            </div>
+            <div className="text-center font-bold h-6 mb-4 text-emerald-600 text-sm uppercase">{status}</div>
+
+            {/* TWIN LAYER SYSTEM */}
+            <div className="bg-white rounded-3xl border border-gray-100 shadow-xs overflow-hidden flex flex-col relative flex-1">
+              <div className="relative overflow-y-auto max-h-[250px] p-4 smooth-scroll no-scrollbar">
+
+                {/* LAYER 1: STATIC CONTENT (Inputs, Text, Color Picker) */}
+                {/* This layer is normal HTML. It does NOT move. */}
+                <div className="relative z-0">
+                  {items.map((item, index) => {
+                    const itemColor = item.color || TAILWIND_COLORS[index % TAILWIND_COLORS.length];
+                    return (
+                      <div key={item.id} className="mb-3 relative group">
+                        <div
+                          className="min-h-[74px] py-4 pr-4 pl-3 rounded-2xl border flex items-center gap-3 relative shadow-xs"
+                          style={{ backgroundColor: `${itemColor}10`, borderColor: `${itemColor}40` }}
+                        >
+                          {/* Spacer for Coin (Keeps layout identical to Layer 2) */}
+                          <div className="w-10 h-10 flex-shrink-0"></div>
+
+                          {/* REAL COLOR PICKER (Works because Layer 2 is pointer-events-none) */}
+                          <div className="relative group/picker flex-shrink-0" title="Change Color">
+                            <div className="w-5 h-5 rounded-full border border-black/10 shadow-sm cursor-pointer hover:scale-110 transition-transform" style={{ backgroundColor: itemColor }} />
+                            <input
+                              type="color"
+                              value={itemColor}
+                              onChange={(e) => {
+                                const newColor = e.target.value;
+                                setItems(prev => prev.map((itm, idx) => idx === index ? { ...itm, color: newColor } : itm));
+                              }}
+                              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                            />
+                          </div>
+
+                          <span className="font-bold text-gray-700 text-lg leading-tight flex-1 break-words min-w-0 pr-2">{item.category}</span>
+
+                          <div className="flex items-center gap-2 flex-shrink-0">
+                            <div className="flex items-center bg-white/60 backdrop-blur-sm px-3 py-1 rounded-lg shadow-sm border border-gray-200/50">
+                              <span className="text-gray-400 mr-1 text-sm">$</span>
+                              <input type="number" className="w-20 text-right font-bold text-lg bg-transparent focus:outline-none focus:ring-2 focus:ring-emerald-400 rounded-sm" value={item.amount} onChange={(e) => handleAmountChange(index, e.target.value)} />
+                            </div>
+                            <button onClick={() => handleRemoveCategory(index)} className="w-8 h-8 flex items-center justify-center rounded-full text-gray-400 hover:bg-rose-500 hover:text-white transition-all">✕</button>
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+
+                {/* LAYER 2: DRAGGABLE COINS */}
+                {/* This layer sits on top but is invisible, only rendering the COIN handles. */}
+                <div className="absolute inset-0 top-4 left-4 right-4 z-10 pointer-events-none">
+                  <Droppable droppableId="budget-list">
+                    {(provided) => (
+                      <div {...provided.droppableProps} ref={provided.innerRef}>
+                        {items.map((item, index) => (
+                          <Draggable key={item.id} draggableId={item.id} index={index}>
+                            {(provided, snapshot) => (
+                              <div ref={provided.innerRef} {...provided.draggableProps} className="mb-3 relative min-h-[74px] flex items-center pl-3">
+
+                                {/* Draggable coin */}
+                                <div
+                                  {...provided.dragHandleProps}
+                                  className="w-10 h-10 flex-shrink-0 flex items-center justify-center border border-amber-100 shadow-sm rounded-full cursor-grab active:cursor-grabbing hover:scale-110 transition-transform text-xl z-20 bg-lime-100 pointer-events-auto"
+                                >
+                                  💸
+                                </div>
+
+                                {/* Drag Preview */}
+                                {snapshot.isDragging && <div className="absolute top-1/2 left-14 -translate-y-1/2 bg-gray-900 text-white font-bold px-4 py-2 rounded-full shadow-xl whitespace-nowrap z-50">Move ${transferAmount}</div>}
+                              </div>
+                            )}
+                          </Draggable>
+                        ))}
+                        {provided.placeholder}
+                      </div>
+                    )}
+                  </Droppable>
+                </div>
+
+              </div>
+
+              <div className="p-4 border-t border-gray-100 bg-gray-50 flex gap-3 z-30 relative mt-auto">
+                <input className="flex-1 p-3 rounded-xl border border-gray-200 shadow-xs focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-white" placeholder="New Category..." value={newCategory} onChange={e => setNewCategory(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') addNewCategory(); }} />
+                <button onClick={addNewCategory} className="bg-emerald-500 hover:bg-emerald-600 text-white px-5 rounded-xl font-bold transition-all active:scale-95 text-lg">+</button>
+              </div>
+            </div>
+          </div>
+
+          {/* RIGHT COLUMN */}
+          {/* <div className="flex-1 flex flex-col sticky top-8" style={{ minHeight: '500px' }}>
+             <div className="bg-white p-8 rounded-3xl shadow-lg border border-gray-100 h-full flex flex-col">
+                <h3 className="text-gray-400 font-bold uppercase tracking-widest text-xs mb-8 text-center">Funds Allocation</h3>
+                <div className="w-full flex-1 min-h-[300px]">
+                    <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                            <Pie data={items} dataKey="amount" nameKey="category" innerRadius={80} outerRadius={120} paddingAngle={5} cornerRadius={6}>
+                                {items.map((entry, index) => (
+                                    <Cell key={`cell-${index}`} fill={entry.color || TAILWIND_COLORS[index % TAILWIND_COLORS.length]} stroke="none" />
+                                ))}
+                            </Pie>
+                            <Tooltip formatter={(val)=>`$${val.toLocaleString()}`} contentStyle={{borderRadius:'12px', border:'none', boxShadow:'0 10px 15px -3px rgba(0, 0, 0, 0.1)'}} />
+                            <Legend verticalAlign="bottom" height={36} iconType="circle"/>
+                        </PieChart>
+                    </ResponsiveContainer>
+                </div>
+                <button onClick={saveBudget} className="w-full py-4 bg-gray-900 hover:bg-black text-white text-lg font-bold rounded-2xl shadow-xl mt-6 transition-all active:scale-[0.98]">💾 Save All Changes</button>
+             </div>
+          </div> */}
+
+          {/* RIGHT COLUMN: CHART (Sticky) */}
+          <div className="flex-1 w-full h-full lg:w-auto sticky top-8">
+            <div className="bg-white p-8 rounded-3xl shadow-lg border border-gray-100 flex flex-col h-fit">
+              <h3 className="text-gray-400 font-bold uppercase tracking-widest text-xs mb-8 text-center">Funds Allocation</h3>
+
+              {/* FIXED HEIGHT CONTAINER FOR CHART */}
+              <div className="w-full h-[400px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={items}
+                      dataKey="amount"
+                      nameKey="category"
+                      innerRadius={80}
+                      outerRadius={120}
+                      paddingAngle={5}
+                      cornerRadius={6}
+                    >
+                      {items.map((entry, index) => (
+                        <Cell
+                          key={`cell-${index}`}
+                          fill={entry.color || TAILWIND_COLORS[index % TAILWIND_COLORS.length]}
+                          stroke="none"
+                        />
+                      ))}
+                    </Pie>
+                    <Tooltip formatter={(val) => `$${val.toLocaleString()}`} contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)' }} />
+                    <Legend verticalAlign="bottom" height={36} iconType="circle" />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+
+              <button
+                onClick={saveBudget}
+                className="w-full py-4 bg-gray-900 hover:bg-black text-white text-lg font-bold rounded-2xl shadow-xl mt-6 transition-all active:scale-[0.98]"
+              >
+                💾 Save All Changes
+              </button>
+            </div>
+          </div>
+
+        </div>
+      </DragDropContext>

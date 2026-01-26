@@ -32,6 +32,9 @@ jobs:
         run: npm ci
 
       - name: Build
+        env:
+            VITE_APP_GOOGLE_CLIENT_ID: ${{secrets.VITE_APP_GOOGLE_CLIENT_ID}}
+            VITE_APP_SCRIPT_URL: ${{secrets.VITE_APP_SCRIPT_URL}}
         run: npm run build
 
       - name: Upload artifact

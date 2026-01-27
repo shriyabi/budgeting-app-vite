@@ -3,7 +3,6 @@ import React, { useState } from 'react';
 export default function HelpWidget({ isOpen, onClose }) {
     const [activeTab, setActiveTab] = useState('setup');
 
-    // Tab Definitions
     const tabs = [
         { id: 'setup', label: 'Sheet Setup', icon: '📋' },
         { id: 'categories', label: 'Budgeting', icon: '🏷️' },
@@ -65,12 +64,11 @@ export default function HelpWidget({ isOpen, onClose }) {
                                 <h3 className="font-bold text-yellow-800 dark:text-yellow-200 mb-1 font-sans">⚠️ Strict Formatting Rule</h3>
                                 <p className="text-sm">Your Google Sheet <b>must</b> follow this layout for the sync to work correctly.</p>
                             </div>
-                            {/* --- TAB 1: SHEET SETUP --- */}
                             
 
                                     <div className="grid md:grid-cols-2 gap-6 h-auto">
 
-                                        {/* LEFT COLUMN: Rows 1-3 (Income) */}
+                                        {/* left col: Rows 1-3 (Income) */}
                                         <div className="border border-gray-200 dark:border-gray-700 rounded-xl p-4 bg-gray-50 dark:bg-gray-900">
                                             <h4 className="font-bold text-emerald-600 mb-2 flex items-center gap-2">
                                                 <span>Rows 1-3</span>
@@ -83,7 +81,7 @@ export default function HelpWidget({ isOpen, onClose }) {
 
                                                 <div className="overflow-hidden rounded-xl border border-gray-200 dark:border-gray-700 shadow-xs">
                                                     <table className="w-full text-sm text-left">
-                                                        {/* Table Header */}
+                                                        
                                                         <thead className="bg-emerald-50 dark:bg-emerald-900/30 text-emerald-800 dark:text-emerald-200 uppercase text-xs tracking-wider">
                                                             <tr>
                                                                 <th className="p-3 font-extrabold border-b border-emerald-100 dark:border-emerald-800/30 w-16 text-center">Row</th>
@@ -91,25 +89,20 @@ export default function HelpWidget({ isOpen, onClose }) {
                                                                 <th className="p-3 font-extrabold border-b border-emerald-100 dark:border-emerald-800/30">Column B (Value)</th>
                                                             </tr>
                                                         </thead>
-
-                                                        {/* Table Body */}
                                                         <tbody className="divide-y divide-gray-100 dark:divide-gray-700 bg-white dark:bg-gray-800">
 
-                                                            {/* Row 1 */}
                                                             <tr className="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
                                                                 <td className="p-3 font-mono font-bold text-gray-400 text-center">1</td>
                                                                 <td className="p-3 text-gray-700 dark:text-gray-200">Monthly Net Income</td>
                                                                 <td className="p-3 font-mono text-emerald-600 dark:text-emerald-400 font-bold">$4,250</td>
                                                             </tr>
 
-                                                            {/* Row 2 */}
                                                             <tr className="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
                                                                 <td className="p-3 font-mono font-bold text-gray-400 text-center">2</td>
                                                                 <td className="p-3 text-gray-700 dark:text-gray-200">Annual Salary</td>
                                                                 <td className="p-3 font-mono text-emerald-600 dark:text-emerald-400 font-bold">$60,000</td>
                                                             </tr>
 
-                                                            {/* Row 3 */}
                                                             <tr className="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
                                                                 <td className="p-3 font-mono font-bold text-gray-400 text-center">3</td>
                                                                 <td className="p-3 text-gray-700 dark:text-gray-200">State Abbreviation</td>
@@ -122,7 +115,7 @@ export default function HelpWidget({ isOpen, onClose }) {
                                             </div>
                                         </div>
 
-                                        {/* RIGHT COLUMN: Stacked (Rows 4+ AND Column Structure) */}
+                                        {/* right col */}
                                         <div className="grid flex flex-col gap-4">
 
                                             {/* A. Rows 4+ Card */}
@@ -136,15 +129,14 @@ export default function HelpWidget({ isOpen, onClose }) {
                                                 </p>
                                             </div>
 
-                                            {/* B. Column Structure (Directly Underneath) */}
+                                            {/* B. Column Structure */}
                                             <div className="border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden shadow-sm h-full flex flex-col bg-white dark:bg-gray-800">
 
-                                                {/* Header (Fixed Height) */}
+                                            
                                                 <div className="bg-gray-100 dark:bg-gray-700 px-4 py-2 border-b border-gray-200 dark:border-gray-600 shrink-0">
                                                     <h4 className="font-bold text-gray-700 dark:text-gray-200 text-xs uppercase tracking-wider">Column Rules</h4>
                                                 </div>
 
-                                                {/* Table (Fills Remaining Space) */}
                                                 <table className="w-full flex-1 text-sm text-left">
                                                     <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
                                                         <tr>
@@ -175,10 +167,10 @@ export default function HelpWidget({ isOpen, onClose }) {
     <div className="space-y-8">
         <h3 className="text-xl font-bold font-serif text-center mb-6">Choose your Workflow</h3>
 
-        {/* SPLIT VIEW CONTAINER */}
+        {/* split view of both options */}
         <div className="flex flex-col md:flex-row gap-8 relative">
             
-            {/* OPTION A: EXISTING BUDGET */}
+            {/* option a: existing budget*/}
             <div className="flex-1 bg-blue-50 dark:bg-blue-900/20 rounded-2xl p-5 border border-blue-100 dark:border-blue-800">
                 <div className="flex items-center gap-3 mb-4">
                     <span className="text-2xl">📥</span>
@@ -200,14 +192,13 @@ export default function HelpWidget({ isOpen, onClose }) {
                 </ol>
             </div>
 
-            {/* DIVIDER (Desktop: Vertical / Mobile: Horizontal) */}
             <div className="flex items-center justify-center relative md:absolute md:left-1/2 md:-translate-x-1/2 md:top-1/2 md:-translate-y-1/2 z-10">
                 <div className="bg-white dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-600 rounded-full w-10 h-10 flex items-center justify-center font-bold text-xs text-gray-400 shadow-sm">
                     OR
                 </div>
             </div>
 
-            {/* OPTION B: NEW BUDGET */}
+            {/* option b: new budget */}
             <div className="flex-1 bg-purple-50 dark:bg-purple-900/20 rounded-2xl p-5 border border-purple-100 dark:border-purple-800">
                 <div className="flex items-center gap-3 mb-4">
                     <span className="text-2xl">✨</span>
@@ -230,7 +221,7 @@ export default function HelpWidget({ isOpen, onClose }) {
             </div>
         </div>
 
-        {/* BOTTOM: UNIVERSAL STEPS */}
+        {/* universal steps */}
         <div className="border-t border-gray-200 dark:border-gray-700 pt-6">
             <h4 className="font-bold text-center text-emerald-600 dark:text-emerald-400 mb-4 uppercase text-xs tracking-widest">Then, Customize & Save</h4>
             
@@ -280,7 +271,7 @@ export default function HelpWidget({ isOpen, onClose }) {
                         </div>
                     )}
 
-                    {/* --- TAB 4: COLOR GUIDE --- */}
+                    {/* 4. color coordingaitng */}
                     {activeTab === 'colors' && (
                         <div className="space-y-4">
                             <h3 className="text-xl font-bold mb-4 font-serif">What do the colors mean?</h3>

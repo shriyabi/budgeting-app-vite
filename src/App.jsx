@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react'; //useEffect
+import React, { useState, useMemo, useEffect } from 'react'; //useEffect
 import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
 import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { GoogleLogin, googleLogout } from '@react-oauth/google';
@@ -43,11 +43,24 @@ const STATE_TAX_RATES = {
   'WY': 0.00, 'DC': 0.1075
 };
 
+const getSpreadsheetId = (input) => {
+  if (!input) return "";
+  // 1. Try to find the ID pattern in a URL
+  const match = input.match(/\/d\/([a-zA-Z0-9-_]+)/);
+  if (match && match[1]) return match[1];
+
+  // 2. If it's a raw ID (no slashes, long string), return it
+  if (!input.includes('/') && input.length > 20) return input;
+
+  // 3. Fallback: Return null so we don't send garbage to Google
+  return null;
+};
+  
 
 export default function BudgetApp() {
   const [user, setUser] = useState(null);
   const [spreadsheetInput, setSpreadsheetInput] = useState('');
-  const [sheetName, setSheetName] = useState('Sheet Name');
+  const [sheetName, setSheetName] = useState('');
   const [availableSheets, setAvailableSheets] = useState([]);
   //const [status, setStatus] = useState('');
   const [spreadsheetStatus, setSpreadsheetStatus] = useState('');
@@ -88,6 +101,46 @@ export default function BudgetApp() {
   const handleRemoveCategory = (idx) => setItems(items.filter((_, i) => i !== idx));
   const handleAmountChange = (index, newValue) => { setItems(prev => prev.map((item, i) => i === index ? { ...item, amount: Number(newValue) } : item)); };
 
+  const [isLoadingSheets, setIsLoadingSheets] = useState(false);
+
+
+ 
+  // 3. EFFECT: Auto-fetch Sheet Names
+ // 3. EFFECT: Auto-fetch Sheet Names
+  useEffect(() => {
+    const fetchSheetNames = async () => {
+      const realId = getSpreadsheetId(spreadsheetInput);
+
+      if (realId) {
+        setIsLoadingSheets(true);
+        try {
+          console.log("Fetching sheets for ID:", realId);
+          // Send meta=true to get the list
+          const res = await fetch(`${API_URL}?spreadsheetId=${realId}&meta=true`);
+          const json = await res.json();
+
+          if (json.allSheets && json.allSheets.length > 0) {
+            console.log("✅ Sheets received:", json.allSheets);
+            setAvailableSheets(json.allSheets);
+            
+            // AUTO-SELECT: If current name is invalid, pick the first one
+            if (!sheetName || sheetName === "Sheet Name" || sheetName === "Sheet1") {
+               setSheetName(json.allSheets[0]);
+            }
+          }
+        } catch (e) {
+          console.error("❌ Auto-fetch failed:", e);
+        } finally {
+          setIsLoadingSheets(false);
+        }
+      }
+    };
+
+    const timer = setTimeout(fetchSheetNames, 1000); // 1-second debounce
+    return () => clearTimeout(timer);
+  }, [spreadsheetInput]);
+  // --- YOUR EXISTING LOGIC ---
+
   const onDragEnd = (result) => {
     const { source, destination } = result;
     if (!destination) return;
@@ -108,63 +161,82 @@ export default function BudgetApp() {
         return;
       }
 
-      //moving transfer amount money to another category 
+      // Moving transfer amount money to another category 
       setItems(prev => {
         const copy = [...prev];
         copy[source.index] = { ...copy[source.index], amount: copy[source.index].amount - amt };
         copy[destination.index] = { ...copy[destination.index], amount: copy[destination.index].amount + amt };
         return copy;
       });
-      //setStatus(`✅ Moved $${amt}`);
       setTransferStatus(`✅ Moved $${amt}`);
     }
   };
 
-  const loadBudget = async () => {
-    if (!spreadsheetInput) {
-      //return setStatus("⚠️ Enter Link or ID");
-      return setSpreadsheetStatus("⚠️ Enter Link or ID");
-    }
+const loadBudget = async () => {
+    // 1. Validation
+    if (!spreadsheetInput) return setSpreadsheetStatus("⚠️ Enter Link");
+    if (!sheetName) return setSpreadsheetStatus("⚠️ Select a Sheet Name");
+
     const realId = getSpreadsheetId(spreadsheetInput);
-    //setStatus("⏳ Syncing...");
     setSpreadsheetStatus("⏳ Syncing...");
+
     try {
-      const res = await fetch(`${API_URL}?spreadsheetId=${realId}&sheetName=${sheetName}`);
-      const json = await res.json();
+      // 2. Fetch Data
+      const url = `${API_URL}?spreadsheetId=${realId}&sheetName=${sheetName}`;
+      const res = await fetch(url);
+      const text = await res.text();
+
+      // 3. Catch HTML Errors
+      if (text.trim().startsWith("<")) {
+        throw new Error("Script Permissions Error");
+      }
+
+      const json = JSON.parse(text);
+
+      // 4. Update Dropdown (Just in case)
       if (json.allSheets) setAvailableSheets(json.allSheets);
-      if (json.savedData) { setSalary(json.savedData.salary); setBonus(json.savedData.bonus); setStateCode(json.savedData.state); }
+
+      // 5. Update Income Data
+      if (json.savedData) {
+        setSalary(json.savedData.salary);
+        setBonus(json.savedData.bonus);
+        setStateCode(json.savedData.state);
+      }
+
+      // 6. Handle "New" vs "Existing"
       if (json.status === "empty") {
-        setItems([{ id: '1', category: 'Rent', amount: 0, color: TAILWIND_COLORS[0] }, { id: '2', category: 'Groceries', amount: 0, color: TAILWIND_COLORS[1] }]);
+        setItems([
+          { id: '1', category: 'Rent', amount: 0, color: TAILWIND_COLORS[0] },
+          { id: '2', category: 'Groceries', amount: 0, color: TAILWIND_COLORS[1] }
+        ]);
+        setSpreadsheetStatus("✨ New Budget Ready");
+      } else if (json.status === "error") {
+        throw new Error(json.message);
       } else {
-        setItems((json.items || []).map((i, idx) => ({ ...i, id: `item-${idx}`, color: i.color || TAILWIND_COLORS[idx % TAILWIND_COLORS.length] })));
-        //setStatus("✅ Data Synced");
+        setItems((json.items || []).map((i, idx) => ({
+          ...i,
+          id: `item-${idx}`,
+          color: i.color || TAILWIND_COLORS[idx % TAILWIND_COLORS.length]
+        })));
         setSpreadsheetStatus("✅ Data Synced");
       }
+
     } catch (e) {
-      //setStatus(`❌ Error: ${e.message}`); 
+      console.error(e);
       setSpreadsheetStatus(`❌ Error: ${e.message}`);
     }
   };
 
-
   const saveBudget = async () => {
     const realId = getSpreadsheetId(spreadsheetInput);
 
-    // save budget colors pop up: allows users to transfer colors to highlight the categories in their spreadsheet
+    // Save budget colors pop up
     const shouldSyncDesign = window.confirm(
       "Do you want to apply your category colors to the Google Sheet?"
     );
 
-    //setStatus("⏳ Saving...");
     setSpreadsheetStatus("⏳ Saving...");
     try {
-      console.log("SENDING TO GOOGLE:", JSON.stringify({
-        syncDesign: shouldSyncDesign,
-        firstItemColor: items[0].color,
-      }, null, 2));
-
-      console.log(items);
-
       const res = await fetch(API_URL, {
         method: "POST",
         body: JSON.stringify({
@@ -178,15 +250,12 @@ export default function BudgetApp() {
       });
       const json = await res.json();
       if (json.allSheets) setAvailableSheets(json.allSheets);
-      //setStatus("✅ Saved!");
       setSpreadsheetStatus("✅ Saved!");
     } catch (e) {
-      //setStatus(`❌ Error: ${e.message}`); 
       setSpreadsheetStatus(`❌ Error: ${e.message}`);
     }
   };
 
-  const getSpreadsheetId = (input) => { const match = input.match(/\/d\/([a-zA-Z0-9-_]+)/); return match ? match[1] : input; };
   const addNewCategory = () => {
     if (!newCategory) return;
     const nextColor = TAILWIND_COLORS[items.length % TAILWIND_COLORS.length];
@@ -202,7 +271,8 @@ export default function BudgetApp() {
             <div className="w-20 h-20 bg-linear-to-br from-[#064e3b] to-[#10b981] rounded-2xl mx-auto flex items-center justify-center shadow-xl z-10 relative border border-[#34d399]/30">
               <span className="text-4xl animate-pulse filter drop-shadow-md">💰</span>
             </div>
-          </div><h1 className="text-3xl font-extrabold mb-2 text-gray-900 dark:text-gray-100 tracking-tight font-serif"> Encourage-mint </h1>
+          </div>
+          <h1 className="text-3xl font-extrabold mb-2 text-gray-900 dark:text-gray-100 tracking-tight font-serif"> Encourage-mint </h1>
           <p className="text-gray-500 dark:text-gray-400 mb-8 font-medium font-serif">Budgeting made more cents</p>
           <div className="flex justify-center"><GoogleLogin onSuccess={handleLoginSuccess} useOneTap shape="pill" /></div>
         </div>
@@ -222,67 +292,116 @@ export default function BudgetApp() {
           </div>
         </div>
 
-        {/* Sync Settings Div (top) */}
+      
+
+        {/* Sync Settings Div */}
         <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-xs border border-gray-100 dark:border-gray-700 mb-8 transition-colors duration-300">
 
           <div className="flex flex-wrap gap-4 items-end">
+            
+            {/* INPUT 1: LINK */}
             <div className="flex-1 min-w-[300px]">
-              <label className="text-xs font-bold text-gray-400 dark:text-gray-400 uppercase tracking-wider mb-2 block font-mono">Spreadsheet Link</label>
-              <input className="w-full p-3 bg-gray-50 dark:bg-gray-700 dark:text-white dark:border-gray-600 border border-gray-200 rounded-xl font-mono text-sm" placeholder="Paste ID or Link..." value={spreadsheetInput} onChange={e => setSpreadsheetInput(e.target.value)} />
-            </div>
-            <div className="w-64 relative z-50">
               <label className="text-xs font-bold text-gray-400 dark:text-gray-400 uppercase tracking-wider mb-2 block font-mono">
-                Sheet Name
+                Spreadsheet Link
               </label>
+              <input 
+                className="w-full p-3 bg-gray-50 dark:bg-gray-700 dark:text-white dark:border-gray-600 border border-gray-200 rounded-xl font-mono text-sm focus:ring-2 focus:ring-emerald-500 outline-none" 
+                placeholder="Paste Google Sheet Link..." 
+                value={spreadsheetInput} 
+                onChange={e => setSpreadsheetInput(e.target.value)} 
+              />
+            </div>
+
+            {/* INPUT 2: SHEET NAME (The Problem Child) */}
+            {/* --- DIAGNOSTIC SHEET SELECTOR --- */}
+            <div className="w-64 relative z-50">
+              <div className="flex justify-between items-center mb-1">
+                <label className="text-xs font-bold text-gray-400 dark:text-gray-400 uppercase tracking-wider block font-mono">
+                  Sheet Name
+                </label>
+                {/* DEBUG BUTTON: Force load and show alert */}
+                <button
+                  onClick={async (e) => {
+                    e.preventDefault();
+                    const realId = getSpreadsheetId(spreadsheetInput);
+                    if (!realId) return alert("❌ No ID found in link");
+
+                    setIsLoadingSheets(true);
+                    try {
+                      // 1. Fetch
+                      const res = await fetch(`${API_URL}?spreadsheetId=${realId}&meta=true`);
+                      const text = await res.text();
+                      console.log("RAW RESPONSE:", text); // Check Console!
+
+                      // 2. Parse
+                      const json = JSON.parse(text);
+                      console.log("340", json); 
+                      // 3. Check keys
+                      if (json.allSheets) {
+                        setAvailableSheets(json.allSheets);
+                        alert(`✅ Success! Found ${json.allSheets.length} sheets: \n${json.allSheets.join(", ")}`);
+                        if(json.allSheets.length > 0) setSheetName(json.allSheets[0]);
+                      } else {
+                        alert("⚠️ Connected, but 'allSheets' is missing from response.\nKeys found: " + Object.keys(json).join(", "));
+                      }
+                    } catch (err) {
+                      alert("❌ Error: " + err.message);
+                    } finally {
+                      setIsLoadingSheets(false);
+                    }
+                  }}
+                  className="text-[10px] bg-emerald-100 text-emerald-800 px-2 py-1 rounded border border-emerald-200 hover:bg-emerald-200 transition-colors"
+                >
+                  🔄 Force Load
+                </button>
+              </div>
 
               <div className="relative group">
-
-                {/* 1. THE INPUT (Type new name here) */}
-                {/* 'peer' class lets the dropdown below know when this input is focused */}
                 <input
                   type="text"
-                  className="peer w-full font-serif p-3 pr-10 bg-gray-50 dark:bg-gray-700 dark:text-white dark:border-gray-600 border border-gray-200 rounded-xl font-bold text-gray-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 placeholder-gray-400"
+                  className="w-full font-serif p-3 pr-10 bg-gray-50 dark:bg-gray-700 dark:text-white dark:border-gray-600 border border-gray-200 rounded-xl font-bold text-gray-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 placeholder-gray-400"
                   value={sheetName}
                   onChange={e => setSheetName(e.target.value)}
-                  placeholder="Type new or select..."
+                  placeholder={isLoadingSheets ? "Loading..." : "Select Sheet..."}
                   autoComplete="off"
                 />
 
-                {/* 2. THE ARROW ICON (Visual Only) */}
-                {/* It sits on top to look like a dropdown, but clicks pass through to the input */}
-                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-gray-500 dark:text-gray-300">
-                  <svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">
-                    <path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z" />
-                  </svg>
-                </div>
-
-                {/* 3. THE DROPDOWN LIST (Appears on Focus) */}
-                {/* 'hidden peer-focus:block' -> Only shows when input is active */}
-                {/* 'hover:block' -> Keeps it open if you hover over the list itself */}
-                <ul className="absolute top-full left-0 right-0 mt-1 max-h-60 overflow-auto bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-xl shadow-xl z-50 hidden peer-focus:block hover:block">
-                  {availableSheets.length > 0 ? (
-                    availableSheets.map((name) => (
+                {/* VISIBLE LIST (Removed 'hidden' classes to debug) */}
+                {availableSheets.length > 0 && (
+                  <ul className="absolute top-full left-0 right-0 mt-1 max-h-60 overflow-auto bg-white dark:bg-gray-800 border-2 border-emerald-500 rounded-xl shadow-2xl z-50 block">
+                    {availableSheets.map((name) => (
                       <li
                         key={name}
-                        // onMouseDown is CRITICAL: It fires before the input 'blurs', ensuring the click works
+                        // PREVENT DEFAULT prevents input blur
                         onMouseDown={(e) => { e.preventDefault(); setSheetName(name); }}
-                        className="px-4 py-3 hover:bg-emerald-50 dark:hover:bg-gray-700 cursor-pointer text-gray-700 dark:text-gray-200 font-bold border-b last:border-0 border-gray-100 dark:border-gray-700 transition-colors"
+                        className="px-4 py-3 hover:bg-emerald-100 dark:hover:bg-gray-600 cursor-pointer text-gray-900 dark:text-white font-bold border-b border-gray-100 dark:border-gray-700"
                       >
                         {name}
                       </li>
-                    ))
-                  ) : (
-                    <li className="px-4 py-3 text-gray-400 text-sm italic">No saved sheets yet</li>
-                  )}
-                </ul>
-
+                    ))}
+                  </ul>
+                )}
+                
+                {/* EMPTY STATE INDICATOR */}
+                {availableSheets.length === 0 && (
+                   <div className="absolute top-full left-0 right-0 mt-1 p-2 bg-yellow-50 text-yellow-800 text-xs text-center border border-yellow-200 rounded hidden group-hover:block">
+                      No sheets loaded yet. Click 'Force Load'.
+                   </div>
+                )}
               </div>
             </div>
-            <button onClick={loadBudget} className="bg-emerald-900 hover:bg-black dark:bg-emerald-700 dark:hover:bg-emerald-600 text-white font-bold py-3 px-8 rounded-xl shadow-lg transition-all active:scale-95 uppercase font-mono">Sync Data</button>
+
+            {/* BUTTON: SYNC */}
+            <button 
+              onClick={loadBudget} 
+              className="bg-emerald-900 hover:bg-black dark:bg-emerald-700 dark:hover:bg-emerald-600 text-white font-bold py-3 px-8 rounded-xl shadow-lg transition-all active:scale-95 uppercase font-mono"
+            >
+              Sync Data
+            </button>
           </div>
 
+          {/* Status Message */}
           <div className="w-full text-center mt-4 font-bold text-emerald-600 dark:text-emerald-400 text-sm uppercase h-4">
-            {/* {status} */}
             {spreadsheetStatus}
           </div>
         </div>
@@ -381,10 +500,10 @@ export default function BudgetApp() {
                 </span>
                 <div className="mt-2 lg:mb-10">
                   <span className={`text-5xl font-extrabold ${unallocatedFunds <= 0
-                      ? 'text-rose-500 drop-shadow-sm' // negative amount
-                      : progressPercent > 85
-                        ? 'bg-linear-to-r from-yellow-500 to-amber-600 dark:from-yellow-300 dark:to-yellow-500 bg-clip-text text-transparent' // more than 85% used
-                        : 'bg-linear-to-r from-emerald-600 to-teal-500 dark:from-emerald-400 dark:to-emerald-200 bg-clip-text text-transparent' // else
+                    ? 'text-rose-500 drop-shadow-sm' // negative amount
+                    : progressPercent > 85
+                      ? 'bg-linear-to-r from-yellow-500 to-amber-600 dark:from-yellow-300 dark:to-yellow-500 bg-clip-text text-transparent' // more than 85% used
+                      : 'bg-linear-to-r from-emerald-600 to-teal-500 dark:from-emerald-400 dark:to-emerald-200 bg-clip-text text-transparent' // else
                     }`}>
                     ${unallocatedFunds.toLocaleString()}
                   </span>
@@ -511,7 +630,7 @@ export default function BudgetApp() {
                 <div className="w-full font-mono uppercase mb-10 h-[400px] lg:h-auto lg:flex-1 min-h-[300px]">
                   <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
-                      <Pie
+                      {/* <Pie
                         data={items}
                         dataKey="amount"
                         nameKey="category"
@@ -527,7 +646,26 @@ export default function BudgetApp() {
                             stroke="none"
                           />
                         ))}
+                      </Pie> */}
+
+                      <Pie
+                        data={items}
+                        dataKey="amount"
+                        nameKey="category"
+                        innerRadius="50%"
+                        outerRadius="75%"
+                        paddingAngle={5}
+                        cornerRadius={6}
+                      >
+                        {items.map((entry, index) => (
+                          <Cell
+                            key={entry.id || `cell-${index}`}
+                            fill={entry.color || TAILWIND_COLORS[index % TAILWIND_COLORS.length]}
+                            stroke="none"
+                          />
+                        ))}
                       </Pie>
+
                       <Tooltip formatter={(val) => `$${val.toLocaleString()}`} contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)' }} />
                       <Legend verticalAlign="bottom" height={36} iconType="circle" wrapperStyle={{ paddingTop: "20px" }} />
                     </PieChart>
@@ -595,7 +733,7 @@ export default function BudgetApp() {
         />
         <div className="fixed bottom-8 right-[240px] z-50 md:right-[200px]">
           <button onClick={() => setIsHelpOpen(true)}>
-            
+
           </button>
         </div>
 

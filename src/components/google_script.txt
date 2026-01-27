@@ -1,0 +1,149 @@
+const DATA_START_ROW = 6; 
+
+function doGet(e) {
+  try {
+    const spreadsheetId = e.parameter.spreadsheetId;
+    const sheetName = e.parameter.sheetName; 
+    const isMeta = e.parameter.meta === 'true'; 
+
+    if (!spreadsheetId) return jsonResponse({ status: "error", message: "Missing ID" });
+
+    const ss = SpreadsheetApp.openById(spreadsheetId);
+    
+    // get the list of sheets given link
+    // We grab this immediately so we can return it even if the specific sheet is missing.
+    const allSheets = ss.getSheets().map(function(s) { return s.getName(); });
+
+    // FAST PATH: If app just wants list of sheets
+    if (isMeta) {
+      return jsonResponse({ status: "success", allSheets: allSheets });
+    }
+
+    // open selected sheet
+    const targetName = sheetName || "Sheet1";
+    let sheet = ss.getSheetByName(targetName);
+
+    // IF SHEET MISSING: Return "Empty" status but include the list!
+    if (!sheet) {
+      return jsonResponse({ 
+        status: "empty", 
+        message: "New Budget",
+        allSheets: allSheets 
+      });
+    }
+
+    const lastRow = sheet.getLastRow();
+    
+    // query income data
+    // Format: B2=Salary, B3=Bonus, B4=State
+    let savedData = { salary: 0, bonus: 0, state: 'VA' };
+    
+    try {
+      // Get B2:B4
+      const incomeValues = sheet.getRange("B2:B4").getValues();
+      if (incomeValues[0][0] !== "") savedData.salary = Number(incomeValues[0][0]); 
+      if (incomeValues[1][0] !== "") savedData.bonus = Number(incomeValues[1][0]);  
+      if (incomeValues[2][0] !== "") savedData.state = incomeValues[2][0];          
+    } catch(err) {
+      // Ignore if sheet is blank
+    }
+
+    // query categories
+    let items = [];
+    if (lastRow >= DATA_START_ROW) {
+      const numRows = lastRow - DATA_START_ROW + 1;
+      // Get Data (Cols A & B) and Colors (Col A)
+      const dataRange = sheet.getRange(DATA_START_ROW, 1, numRows, 2).getValues(); 
+      const colorRange = sheet.getRange(DATA_START_ROW, 1, numRows, 1).getBackgrounds(); 
+
+      for (let i = 0; i < dataRange.length; i++) {
+        if (dataRange[i][0]) { // If category name exists
+          items.push({
+            category: dataRange[i][0],
+            amount: Number(dataRange[i][1]) || 0,
+            color: colorRange[i][0] !== '#ffffff' ? colorRange[i][0] : null 
+          });
+        }
+      }
+    }
+    
+    return jsonResponse({ 
+      status: "success", 
+      savedData, 
+      items,
+      allSheets // Always return this!
+    });
+
+  } catch (err) {
+    return jsonResponse({ status: "error", message: err.toString() });
+  }
+}
+
+function doPost(e) {
+  try {
+    const data = JSON.parse(e.postData.contents);
+    const ss = SpreadsheetApp.openById(data.spreadsheetId);
+    let sheet = ss.getSheetByName(data.sheetName);
+    
+    // Create sheet if missing
+    if (!sheet) {
+      sheet = ss.insertSheet(data.sheetName);
+    }
+
+    const lastRow = sheet.getLastRow();
+
+    // save income data
+    // Matches your screenshot: A=Labels, B=Values
+    if (data.incomeData) {
+       const incomeBlock = [
+         ["Net Monthly Income", data.netMonthlyIncome || 0], // Row 1
+         ["Annual Salary", data.incomeData.salary],          // Row 2
+         ["Annual Bonus", data.incomeData.bonus],            // Row 3
+         ["State", data.incomeData.state]                    // Row 4
+       ];
+       
+       sheet.getRange("A1:B4").setValues(incomeBlock);
+       sheet.getRange("A1:A4").setFontWeight("bold"); // Bold labels
+       sheet.getRange("B1").setFontWeight("bold");    // Bold Net Income
+    }
+
+    //clear old data
+    if (lastRow >= DATA_START_ROW) {
+      const numRows = lastRow - DATA_START_ROW + 1;
+      sheet.getRange(DATA_START_ROW, 1, numRows, 2).clearContent();     
+      sheet.getRange(DATA_START_ROW, 1, numRows, 1).setBackground(null); 
+    }
+
+    // write new ndata
+    if (data.items && data.items.length > 0) {
+      const rows = data.items.map(item => [item.category, item.amount]);
+      
+      // Write text
+      sheet.getRange(DATA_START_ROW, 1, rows.length, 2).setValues(rows);
+
+      // Write colors (if enabled)
+      if (data.syncDesign === true) {
+        const colorMatrix = data.items.map(item => {
+          let c = item.color;
+          // Validate hex code
+          if (!c || typeof c !== 'string' || !c.startsWith('#')) return ["#ffffff"];
+          // Fix 3-digit hex (#FFF -> #FFFFFF)
+          if (c.length === 4) c = '#' + c[1] + c[1] + c[2] + c[2] + c[3] + c[3];
+          return [c];
+        });
+        sheet.getRange(DATA_START_ROW, 1, rows.length, 1).setBackgrounds(colorMatrix);
+      }
+    }
+
+    sheet.getRange("A5:B5").setValues([["Category", "Amount"]]).setFontWeight("bold").setBackground("#f3f4f6");
+
+    return jsonResponse({ status: "success", allSheets: ss.getSheets().map(s => s.getName()) });
+
+  } catch (err) {
+    return jsonResponse({ status: "error", message: err.toString() });
+  }
+}
+
+function jsonResponse(data) {
+  return ContentService.createTextOutput(JSON.stringify(data)).setMimeType(ContentService.MimeType.JSON);
+}

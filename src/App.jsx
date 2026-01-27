@@ -1,9 +1,12 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo } from 'react'; //useEffect
 import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
 import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { GoogleLogin, googleLogout } from '@react-oauth/google';
 import { jwtDecode } from 'jwt-decode';
 import './index.css'
+import ScratchpadWidget from './components/scratchpad';
+import Calculator from './components/calculator';
+import HelpWidget from './components/help';
 
 const API_URL = import.meta.env.VITE_APP_SCRIPT_URL;
 
@@ -40,117 +43,25 @@ const STATE_TAX_RATES = {
   'WY': 0.00, 'DC': 0.1075
 };
 
-// Widgets (bottom right: calculator and notepad)
-const Calculator = ({ isOpen, onClose }) => {
-  const [calcInput, setCalcInput] = useState('');
-  const [result, setResult] = useState('');
-  const handleBtn = (val) => {
-    if (val === 'C') { setCalcInput(''); setResult(''); return; }
-    if (val === '=') {
-      try {
-        // eslint-disable-next-line
-        const res = Function('"use strict";return (' + calcInput + ')')();
-        setResult(String(res));
-        setCalcInput(String(res));
-      } catch { setResult('Error'); }
-      return;
-    }
-    setCalcInput(prev => prev + val);
-  };
-  if (!isOpen) return null;
-  return (
-    <div className="fixed bottom-28 right-8 w-72 bg-gray-900 rounded-3xl shadow-2xl border border-gray-700 overflow-hidden z-40 animate-fade-in-up">
-      <div className="bg-gray-800 p-3 flex justify-between items-center">
-        <span className="text-gray-400 text-xs font-bold uppercase tracking-wider pl-2">Calculator</span>
-        <button onClick={onClose} className="text-gray-400 hover:text-white px-2">✕</button>
-      </div>
-      <div className="bg-gray-900 p-4 text-right border-b border-gray-800">
-        <div className="text-gray-500 text-sm h-5">{result !== calcInput ? calcInput : ''}</div>
-        <div className="text-white text-3xl font-mono font-bold truncate">{calcInput || '0'}</div>
-      </div>
-      <div className="grid grid-cols-4 gap-1 p-2 bg-gray-800">
-        {['7', '8', '9', '/', '4', '5', '6', '*', '1', '2', '3', '-', 'C', '0', '=', '+'].map(btn => (
-          <button key={btn} onClick={() => handleBtn(btn)} className={`p-4 text-lg font-bold rounded-xl transition-colors ${btn === '=' ? 'bg-blue-600 text-white col-span-1' : ['/', '*', '-', '+'].includes(btn) ? 'bg-gray-700 text-blue-400' : btn === 'C' ? 'bg-red-500/20 text-red-400' : 'bg-gray-900 text-white hover:bg-gray-700'}`}>{btn}</button>
-        ))}
-      </div>
-    </div>
-  );
-};
-
-const Scratchpad = ({ isOpen, onClose, value, onChange, isCalcOpen }) => {
-  const [position, setPosition] = useState({
-    x: Math.max(window.innerWidth - 350, 20),
-    y: window.innerHeight - (isCalcOpen ? 600 : 400)
-  });
-  const [size, setSize] = useState({ width: 288, height: 250 });
-  const [isDragging, setIsDragging] = useState(false);
-  const [isResizing, setIsResizing] = useState(false);
-  const [dragStart, setDragStart] = useState({ x: 0, y: 0, rightAnchor: 0 });
-
-  useEffect(() => {
-    const handleWindowResize = () => {
-      setPosition(prev => ({
-        x: Math.min(prev.x, window.innerWidth - size.width - 20),
-        y: Math.min(prev.y, window.innerHeight - size.height - 20)
-      }));
-    };
-    window.addEventListener('resize', handleWindowResize);
-    return () => window.removeEventListener('resize', handleWindowResize);
-  }, [size]);
-
-  const startDrag = (e) => { e.preventDefault(); setIsDragging(true); setDragStart({ x: e.clientX - position.x, y: e.clientY - position.y }); };
-  const startResize = (e) => { e.preventDefault(); e.stopPropagation(); setIsResizing(true); setDragStart({ rightAnchor: position.x + size.width, y: position.y }); };
-
-  useEffect(() => {
-    const handleMouseMove = (e) => {
-      if (isDragging) setPosition({ x: e.clientX - dragStart.x, y: e.clientY - dragStart.y });
-      if (isResizing) {
-        const newWidth = dragStart.rightAnchor - e.clientX;
-        const newHeight = e.clientY - position.y;
-        if (newWidth > 200 && newHeight > 150) {
-          setSize({ width: newWidth, height: newHeight });
-          setPosition({ x: e.clientX, y: position.y });
-        }
-      }
-    };
-    const handleMouseUp = () => { setIsDragging(false); setIsResizing(false); };
-    if (isDragging || isResizing) { window.addEventListener('mousemove', handleMouseMove); window.addEventListener('mouseup', handleMouseUp); }
-    return () => { window.removeEventListener('mousemove', handleMouseMove); window.removeEventListener('mouseup', handleMouseUp); };
-  }, [isDragging, isResizing, dragStart, position.y, position.x]);
-
-  if (!isOpen) return null;
-  return (
-    <div className="fixed bg-white dark:bg-gray-800 rounded-3xl shadow-2xl border border-gray-200 dark:border-gray-700 overflow-hidden z-50 flex flex-col select-none" style={{ left: Math.max(0, position.x), top: Math.max(0, position.y), width: size.width, height: size.height, transition: isDragging || isResizing ? 'none' : 'opacity 0.2s' }}>
-      <div onMouseDown={startDrag} className="bg-gray-100 dark:bg-gray-900 p-3 flex justify-between items-center border-b border-gray-200 dark:border-gray-700 cursor-move">
-        <span className="text-gray-500 dark:text-gray-400 text-xs font-bold uppercase tracking-wider pl-2 pointer-events-none">Scratchpad</span>
-        <button onClick={onClose} onMouseDown={(e) => e.stopPropagation()} className="text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 px-2 cursor-pointer">✕</button>
-      </div>
-      <textarea className="flex-1 w-full p-4 bg-white dark:bg-gray-800 border-none resize-none font-mono focus:ring-0 text-gray-700 dark:text-gray-200 text-sm font-medium focus:outline-none select-text" placeholder="Type quick notes here..." value={value} onChange={(e) => onChange(e.target.value)} />
-      <div onMouseDown={startResize} className="absolute bottom-0 left-0 w-8 h-8 cursor-nesw-resize flex items-end justify-start p-1 text-gray-300 dark:text-gray-600 hover:text-gray-500 z-10">
-        <svg viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5 transform rotate-180 pointer-events-none"><path d="M22 22H2V20H22V22ZM22 18H6V16H22V18ZM22 14H10V12H22V14Z" /></svg>
-      </div>
-    </div>
-  );
-};
 
 export default function BudgetApp() {
   const [user, setUser] = useState(null);
   const [spreadsheetInput, setSpreadsheetInput] = useState('');
-  const [sheetName, setSheetName] = useState('Jan-2026');
+  const [sheetName, setSheetName] = useState('Sheet Name');
   const [availableSheets, setAvailableSheets] = useState([]);
   //const [status, setStatus] = useState('');
   const [spreadsheetStatus, setSpreadsheetStatus] = useState('');
   const [transferStatus, setTransferStatus] = useState('');
-  const [salary, setSalary] = useState(60000);
+  const [salary, setSalary] = useState(0);
   const [bonus, setBonus] = useState(0);
-  const [stateCode, setStateCode] = useState('TX');
+  const [stateCode, setStateCode] = useState('AL');
   const [items, setItems] = useState([]);
   const [transferAmount, setTransferAmount] = useState(50);
   const [newCategory, setNewCategory] = useState('');
   const [scratchpad, setScratchpad] = useState('');
   const [isCalcOpen, setIsCalcOpen] = useState(false);
   const [isScratchOpen, setIsScratchOpen] = useState(false);
-
+  const [isHelpOpen, setIsHelpOpen] = useState(false);
 
   const netMonthlyIncome = useMemo(() => {
     const grossAnnual = Number(salary) + Number(bonus);
@@ -292,7 +203,7 @@ export default function BudgetApp() {
               <span className="text-4xl animate-pulse filter drop-shadow-md">💰</span>
             </div>
           </div><h1 className="text-3xl font-extrabold mb-2 text-gray-900 dark:text-gray-100 tracking-tight font-serif"> Encourage-mint </h1>
-          <p className="text-gray-500 dark:text-gray-400 mb-8 font-medium font-sans">Budgeting made more cents</p>
+          <p className="text-gray-500 dark:text-gray-400 mb-8 font-medium font-serif">Budgeting made more cents</p>
           <div className="flex justify-center"><GoogleLogin onSuccess={handleLoginSuccess} useOneTap shape="pill" /></div>
         </div>
       </div>
@@ -319,11 +230,52 @@ export default function BudgetApp() {
               <label className="text-xs font-bold text-gray-400 dark:text-gray-400 uppercase tracking-wider mb-2 block font-mono">Spreadsheet Link</label>
               <input className="w-full p-3 bg-gray-50 dark:bg-gray-700 dark:text-white dark:border-gray-600 border border-gray-200 rounded-xl font-mono text-sm" placeholder="Paste ID or Link..." value={spreadsheetInput} onChange={e => setSpreadsheetInput(e.target.value)} />
             </div>
-            <div className="w-64">
-              <label className="text-xs font-bold text-gray-400 dark:text-gray-400 uppercase tracking-wider mb-2 block font-mono">Sheet Name</label>
-              <div className="relative">
-                <input list="sheet-options" className="w-full font-serif p-3 bg-gray-50 dark:bg-gray-700 dark:text-white dark:border-gray-600 border border-gray-200 rounded-xl font-bold text-gray-700 focus:outline-hidden focus:ring-2 focus:ring-emerald-500" value={sheetName} onChange={e => setSheetName(e.target.value)} placeholder="e.g. Jan-2026" />
-                <datalist id="sheet-options">{availableSheets.map(name => <option key={name} value={name} />)}</datalist>
+            <div className="w-64 relative z-50">
+              <label className="text-xs font-bold text-gray-400 dark:text-gray-400 uppercase tracking-wider mb-2 block font-mono">
+                Sheet Name
+              </label>
+
+              <div className="relative group">
+
+                {/* 1. THE INPUT (Type new name here) */}
+                {/* 'peer' class lets the dropdown below know when this input is focused */}
+                <input
+                  type="text"
+                  className="peer w-full font-serif p-3 pr-10 bg-gray-50 dark:bg-gray-700 dark:text-white dark:border-gray-600 border border-gray-200 rounded-xl font-bold text-gray-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 placeholder-gray-400"
+                  value={sheetName}
+                  onChange={e => setSheetName(e.target.value)}
+                  placeholder="Type new or select..."
+                  autoComplete="off"
+                />
+
+                {/* 2. THE ARROW ICON (Visual Only) */}
+                {/* It sits on top to look like a dropdown, but clicks pass through to the input */}
+                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-gray-500 dark:text-gray-300">
+                  <svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">
+                    <path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z" />
+                  </svg>
+                </div>
+
+                {/* 3. THE DROPDOWN LIST (Appears on Focus) */}
+                {/* 'hidden peer-focus:block' -> Only shows when input is active */}
+                {/* 'hover:block' -> Keeps it open if you hover over the list itself */}
+                <ul className="absolute top-full left-0 right-0 mt-1 max-h-60 overflow-auto bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-xl shadow-xl z-50 hidden peer-focus:block hover:block">
+                  {availableSheets.length > 0 ? (
+                    availableSheets.map((name) => (
+                      <li
+                        key={name}
+                        // onMouseDown is CRITICAL: It fires before the input 'blurs', ensuring the click works
+                        onMouseDown={(e) => { e.preventDefault(); setSheetName(name); }}
+                        className="px-4 py-3 hover:bg-emerald-50 dark:hover:bg-gray-700 cursor-pointer text-gray-700 dark:text-gray-200 font-bold border-b last:border-0 border-gray-100 dark:border-gray-700 transition-colors"
+                      >
+                        {name}
+                      </li>
+                    ))
+                  ) : (
+                    <li className="px-4 py-3 text-gray-400 text-sm italic">No saved sheets yet</li>
+                  )}
+                </ul>
+
               </div>
             </div>
             <button onClick={loadBudget} className="bg-emerald-900 hover:bg-black dark:bg-emerald-700 dark:hover:bg-emerald-600 text-white font-bold py-3 px-8 rounded-xl shadow-lg transition-all active:scale-95 uppercase font-mono">Sync Data</button>
@@ -336,83 +288,83 @@ export default function BudgetApp() {
         </div>
 
         {/* Salary/Tax Calculator */}
-        
-<div className="bg-linear-to-br from-[#1a4731] via-[#0f5132] to-[#064e3b] p-8 rounded-3xl shadow-xl shadow-[#064e3b]/20 mb-10 text-white relative overflow-hidden border-2 border-[#4ade80]/20">
-  
-  <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-white/5 via-transparent to-transparent -mr-32 -mt-32 pointer-events-none opacity-50 blur-2xl"></div>
-  <div className="absolute bottom-0 left-0 w-[300px] h-[300px] bg-emerald-400/10 rounded-full blur-3xl -ml-20 -mb-20 pointer-events-none"></div>
 
-  <div className="flex flex-wrap gap-8 items-end relative z-10">
-    
-    {/* input fields */}
-    <div>
-      <label className="text-[10px] text-[#86efac] font-bold uppercase tracking-widest mb-2 block font-mono opacity-80">
-        Base Salary
-      </label>
-      <div className="relative">
-        <span className="absolute left-4 top-1/2 -translate-y-1/2 text-emerald-500 font-bold">$</span>
-        <input 
-          type="number" 
-          className="pl-8 p-3 rounded-xl bg-[#022c22]/60 border border-[#34d399]/30 w-36 focus:outline-none focus:ring-2 focus:ring-[#4ade80] text-white font-mono text-lg shadow-inner" 
-          value={salary} 
-          onChange={e => setSalary(e.target.value)} 
-        />
-      </div>
-    </div>
+        <div className="bg-linear-to-br from-[#1a4731] via-[#0f5132] to-[#064e3b] p-8 rounded-3xl shadow-xl shadow-[#064e3b]/20 mb-10 text-white relative overflow-hidden border-2 border-[#4ade80]/20">
 
-    <div>
-      <label className="text-[10px] text-[#86efac] font-bold uppercase tracking-widest mb-2 block font-mono opacity-80">
-        Bonus
-      </label>
-      <div className="relative">
-        <span className="absolute left-4 top-1/2 -translate-y-1/2 text-emerald-500 font-bold">$</span>
-        <input 
-          type="number" 
-          className="pl-8 p-3 rounded-xl bg-[#022c22]/60 border border-[#34d399]/30 w-36 focus:outline-none focus:ring-2 focus:ring-[#4ade80] text-white font-mono text-lg shadow-inner" 
-          value={bonus} 
-          onChange={e => setBonus(e.target.value)} 
-        />
-      </div>
-    </div>
+          <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-white/5 via-transparent to-transparent -mr-32 -mt-32 pointer-events-none opacity-50 blur-2xl"></div>
+          <div className="absolute bottom-0 left-0 w-[300px] h-[300px] bg-emerald-400/10 rounded-full blur-3xl -ml-20 -mb-20 pointer-events-none"></div>
 
-    <div>
-      <label className="text-[10px] text-[#86efac] font-bold uppercase tracking-widest mb-2 block font-mono opacity-80">
-        State Tax
-      </label>
-      <select 
-        className="p-3 rounded-xl bg-[#022c22]/60 border border-[#34d399]/30 w-28 focus:outline-none focus:ring-2 focus:ring-[#4ade80] text-white font-mono text-lg [&>option]:text-black cursor-pointer" 
-        value={stateCode} 
-        onChange={e => setStateCode(e.target.value)}
-      >
-        {Object.keys(STATE_TAX_RATES).map(s => <option key={s}>{s}</option>)}
-      </select>
-    </div>
-    
-    {/* income display */}
-    <div className="ml-auto text-right">
-      <div className="text-[10px] text-[#86efac] font-bold uppercase tracking-widest mb-1 opacity-80 font-mono">
-        Monthly Net Income
-      </div>
-      <div className="text-5xl font-extrabold text-transparent bg-clip-text bg-linear-to-b from-white to-[#86efac] drop-shadow-sm tracking-tight font-sans">
-        ${netMonthlyIncome.toLocaleString()}
-      </div>
-    </div>
-  </div>
+          <div className="flex flex-wrap gap-8 items-end relative z-10">
 
-  {/* progress bar on net income used */}
-  <div className="mt-8 relative z-10">
-    <div className="flex justify-between text-[10px] font-bold uppercase tracking-widest mb-2 text-[#86efac] font-mono">
-      <span>Funds Utilized</span>
-      <span>{Math.round(progressPercent)}%</span>
-    </div>
-    <div className="h-4 bg-[#022c22]/50 rounded-full overflow-hidden border border-[#34d399]/20 p-[2px]">
-      <div 
-        className={`h-full rounded-full transition-all duration-1000 shadow-[0_0_10px_rgba(74,222,128,0.3)] ${progressPercent > 100 ? 'bg-rose-500' : 'bg-linear-to-r from-[#15803d] via-[#22c55e] to-[#86efac]'}`} 
-        style={{ width: `${Math.min(progressPercent, 100)}%` }}
-      ></div>
-    </div>
-  </div>
-</div>
+            {/* input fields */}
+            <div>
+              <label className="text-[10px] text-[#86efac] font-bold uppercase tracking-widest mb-2 block font-mono opacity-80">
+                Base Salary
+              </label>
+              <div className="relative">
+                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-emerald-500 font-bold">$</span>
+                <input
+                  type="number"
+                  className="pl-8 p-3 rounded-xl bg-[#022c22]/60 border border-[#34d399]/30 w-36 focus:outline-none focus:ring-2 focus:ring-[#4ade80] text-white font-mono text-lg shadow-inner"
+                  value={salary}
+                  onChange={e => setSalary(e.target.value)}
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="text-[10px] text-[#86efac] font-bold uppercase tracking-widest mb-2 block font-mono opacity-80">
+                Bonus
+              </label>
+              <div className="relative">
+                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-emerald-500 font-bold">$</span>
+                <input
+                  type="number"
+                  className="pl-8 p-3 rounded-xl bg-[#022c22]/60 border border-[#34d399]/30 w-36 focus:outline-none focus:ring-2 focus:ring-[#4ade80] text-white font-mono text-lg shadow-inner"
+                  value={bonus}
+                  onChange={e => setBonus(e.target.value)}
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="text-[10px] text-[#86efac] font-bold uppercase tracking-widest mb-2 block font-mono opacity-80">
+                State Tax
+              </label>
+              <select
+                className="p-3 rounded-xl bg-[#022c22]/60 border border-[#34d399]/30 w-28 focus:outline-none focus:ring-2 focus:ring-[#4ade80] text-white font-mono text-lg [&>option]:text-black cursor-pointer"
+                value={stateCode}
+                onChange={e => setStateCode(e.target.value)}
+              >
+                {Object.keys(STATE_TAX_RATES).map(s => <option key={s}>{s}</option>)}
+              </select>
+            </div>
+
+            {/* income display */}
+            <div className="ml-auto text-right">
+              <div className="text-[10px] text-[#86efac] font-bold uppercase tracking-widest mb-1 opacity-80 font-mono">
+                Monthly Net Income
+              </div>
+              <div className="text-5xl font-extrabold text-transparent bg-clip-text bg-linear-to-b from-white to-[#86efac] drop-shadow-sm tracking-tight font-sans">
+                ${netMonthlyIncome.toLocaleString()}
+              </div>
+            </div>
+          </div>
+
+          {/* progress bar on net income used */}
+          <div className="mt-8 relative z-10">
+            <div className="flex justify-between text-[10px] font-bold uppercase tracking-widest mb-2 text-[#86efac] font-mono">
+              <span>Funds Utilized</span>
+              <span>{isNaN(progressPercent) ? 0 : Math.round(progressPercent)}%</span>
+            </div>
+            <div className="h-4 bg-[#022c22]/50 rounded-full overflow-hidden border border-[#34d399]/20 p-[2px]">
+              <div
+                className={`h-full rounded-full transition-all duration-1000 shadow-[0_0_10px_rgba(74,222,128,0.3)] ${progressPercent > 100 ? 'bg-rose-500' : 'bg-linear-to-r from-[#15803d] via-[#22c55e] to-[#86efac]'}`}
+                style={{ width: `${isNaN(progressPercent) ? 0 : Math.min(progressPercent, 100)}%` }}
+              ></div>
+            </div>
+          </div>
+        </div>
 
 
         <DragDropContext onDragEnd={onDragEnd}>
@@ -428,9 +380,11 @@ export default function BudgetApp() {
                   To Be Budgeted
                 </span>
                 <div className="mt-2 lg:mb-10">
-                  <span className={`text-5xl font-extrabold ${unallocatedFunds < 0
-                    ? 'text-rose-500 drop-shadow-sm'
-                    : 'bg-linear-to-r from-emerald-600 font-sans to-teal-500 dark:from-emerald-400 dark:to-emerald-200 bg-clip-text text-transparent'
+                  <span className={`text-5xl font-extrabold ${unallocatedFunds <= 0
+                      ? 'text-rose-500 drop-shadow-sm' // negative amount
+                      : progressPercent > 85
+                        ? 'bg-linear-to-r from-yellow-500 to-amber-600 dark:from-yellow-300 dark:to-yellow-500 bg-clip-text text-transparent' // more than 85% used
+                        : 'bg-linear-to-r from-emerald-600 to-teal-500 dark:from-emerald-400 dark:to-emerald-200 bg-clip-text text-transparent' // else
                     }`}>
                     ${unallocatedFunds.toLocaleString()}
                   </span>
@@ -438,7 +392,10 @@ export default function BudgetApp() {
               </div>
 
               {/* Transfer Amount */}
+
+
               <div className="flex justify-center items-center gap-4 mb-8">
+
                 <div className="flex items-center gap-3 bg-slate-100 dark:bg-gray-700 p-2 pl-4 rounded-full border border-slate-100 dark:border-gray-600 shadow-sm transition-colors duration-300">
                   <span className="text-xs font-bold text-gray-400 dark:text-gray-400 uppercase tracking-wide font-mono">Transfer Amount</span>
                   <span className="font-bold text-gray-800 dark:text-white">$</span>
@@ -460,6 +417,27 @@ export default function BudgetApp() {
                     </div>
                   )}
                 </Droppable>
+
+                {/* Help Icon */}
+                <div className="relative group cursor-help">
+                  <div className="w-6 h-6 rounded-full bg-gray-200 dark:bg-gray-600 text-gray-500 dark:text-gray-300 flex items-center justify-center text-xs font-bold border border-gray-300 dark:border-gray-500 hover:bg-emerald-500 hover:text-white hover:border-emerald-500 transition-colors">
+                    ?
+                  </div>
+
+                  {/* Tooltip */}
+                  <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-3 w-64 p-4 bg-gray-900 text-white text-xs rounded-xl shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all transform group-hover:-translate-y-1 pointer-events-none z-50">
+                    <div className="font-bold uppercase tracking-widest text-gray-400 mb-2 border-b border-gray-700 pb-1">How to Move Money</div>
+                    <div className="flex items-start gap-2 mb-2">
+                      <span className="text-lg leading-none">🪙</span>
+                      <span className="leading-tight">Drag <b>Coin</b> to add new money from your Income to a Category.</span>
+                    </div>
+                    <div className="flex items-start gap-2">
+                      <span className="text-lg leading-none">💸</span>
+                      <span className="leading-tight">Drag <b>Bill</b> (next to category) to move money between buckets.</span>
+                    </div>
+                    <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-1 border-8 border-transparent border-t-gray-900"></div>
+                  </div>
+                </div>
               </div>
 
               <div className="w-full text-center font-bold text-emerald-600 dark:text-emerald-400 text-sm uppercase h-4 mb-4">
@@ -483,7 +461,7 @@ export default function BudgetApp() {
                                 <div className="w-5 h-5 rounded-full border border-black/10 dark:border-white/20 shadow-sm cursor-pointer hover:scale-110 transition-transform" style={{ backgroundColor: itemColor }} />
                                 <input type="color" value={itemColor} onChange={(e) => { const newColor = e.target.value; setItems(prev => prev.map((itm, idx) => idx === index ? { ...itm, color: newColor } : itm)); }} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer p-0 border-0" />
                               </div>
-                              <span className="font-bold text-gray-700 dark:text-gray-200 text-lg leading-tight flex-1 break-words min-w-0 pr-2 uppercase font-serif">{item.category}</span>
+                              <span className="font-bold text-gray-700 dark:text-gray-200 text-lg leading-tight flex-1 break-words min-w-0 pr-2 uppercase font-mono">{item.category}</span>
                               <div className="flex items-center gap-2 flex-shrink-0">
                                 <div className="flex items-center bg-white/60 dark:bg-black/30 backdrop-blur-sm px-3 py-1 rounded-lg shadow-sm border border-gray-200/50 dark:border-gray-600/50">
                                   <span className="text-gray-400 mr-1 text-sm">$</span>
@@ -530,7 +508,7 @@ export default function BudgetApp() {
                 <h3 className="text-gray-400 font-bold uppercase tracking-widest text-xs mb-8 text-center font-mono">Funds Allocation</h3>
 
                 {/* Chart */}
-                <div className="w-full font-serif h-[400px] lg:h-auto lg:flex-1 min-h-[300px]">
+                <div className="w-full font-mono uppercase mb-10 h-[400px] lg:h-auto lg:flex-1 min-h-[300px]">
                   <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
                       <Pie
@@ -568,13 +546,59 @@ export default function BudgetApp() {
           </div>
         </DragDropContext>
 
+        {/* Widget Buttons*/}
+
+
         <div className="fixed bottom-8 right-8 flex flex-col md:flex-row items-center gap-4 z-50">
-          <button onClick={() => setIsScratchOpen(!isScratchOpen)} className="w-16 h-16 bg-linear-to-br from-gray-300 to-gray-700 text-white rounded-full shadow-2xl flex items-center justify-center text-3xl transition-transform hover:scale-110" title="Scratchpad">📝</button>
-          <button onClick={() => setIsCalcOpen(!isCalcOpen)} className="w-16 h-16 bg-linear-to-br from-blue-400 to-indigo-800 text-white rounded-full shadow-2xl flex items-center justify-center text-3xl transition-transform hover:scale-110" title="Calculator">🧮</button>
+          <button
+            onClick={() => setIsScratchOpen(!isScratchOpen)}
+            className="w-16 h-16 bg-linear-to-br from-gray-300 to-gray-700 text-white rounded-full shadow-2xl flex items-center justify-center text-3xl transition-transform hover:scale-110"
+            title="Scratchpad"
+          >
+            📝
+          </button>
+          <button
+            onClick={() => setIsCalcOpen(!isCalcOpen)}
+            className="w-16 h-16 bg-linear-to-br from-blue-400 to-indigo-800 text-white rounded-full shadow-2xl flex items-center justify-center text-3xl transition-transform hover:scale-110"
+            title="Calculator"
+          >
+            🧮
+          </button>
+
+          <button
+            onClick={() => setIsHelpOpen(!isHelpOpen)}
+            className="w-16 h-16 font-extrabold bg-linear-to-br from-lime-200 to-lime-700 text-white rounded-full shadow-2xl flex items-center justify-center text-5xl transition-transform hover:scale-110 border-emerald-200/50"
+            title="Help & Instructions"
+          >
+            ?
+          </button>
+
         </div>
 
-        <Scratchpad isOpen={isScratchOpen} onClose={() => setIsScratchOpen(false)} value={scratchpad} onChange={setScratchpad} isCalcOpen={isCalcOpen} />
+
+        {/* Widgets */}
+        <ScratchpadWidget
+          isOpen={isScratchOpen}
+          onClose={() => setIsScratchOpen(false)}
+          value={scratchpad}
+          onChange={setScratchpad}
+          isCalcOpen={isCalcOpen}
+        />
+
         <Calculator isOpen={isCalcOpen} onClose={() => setIsCalcOpen(false)} />
+        {/* 
+        <HelpWidget isOpen={isHelpOpen} onClose={() => setIsCalcOpen(false)} /> */}
+
+        <HelpWidget
+          isOpen={isHelpOpen}
+          onClose={() => setIsHelpOpen(false)}
+        />
+        <div className="fixed bottom-8 right-[240px] z-50 md:right-[200px]">
+          <button onClick={() => setIsHelpOpen(true)}>
+            
+          </button>
+        </div>
+
       </div>
     </div>
   );

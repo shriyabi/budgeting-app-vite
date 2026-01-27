@@ -28,7 +28,7 @@ export default function HelpWidget({ isOpen, onClose }) {
                 <div className="bg-emerald-600 p-6 text-white flex justify-between items-center">
                     <div>
                         <h2 className="text-2xl font-extrabold tracking-tight font-serif">How to use Encourage-mint</h2>
-                        <p className="text-emerald-100 text-sm opacity-90 font-sans">Master your budget with these simple rules.</p>
+                        <p className="text-emerald-100 text-sm opacity-90 font-sans">Make your budget make cents with these simple rules.</p>
                     </div>
                     <button
                         onClick={onClose}
@@ -44,7 +44,7 @@ export default function HelpWidget({ isOpen, onClose }) {
                         <button
                             key={tab.id}
                             onClick={() => setActiveTab(tab.id)}
-                            className={`flex-1 py-4 px-4 text-sm font-bold uppercase tracking-wider whitespace-nowrap transition-colors flex items-center justify-center gap-2
+                            className={`flex-1 py-4 px-4 text-sm font-mono font-bold uppercase tracking-wider whitespace-nowrap transition-colors flex items-center justify-center gap-2
                 ${activeTab === tab.id
                                     ? 'text-emerald-600 dark:text-emerald-400 border-b-4 border-emerald-500 bg-white dark:bg-gray-800'
                                     : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-200'

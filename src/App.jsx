@@ -336,9 +336,10 @@ const loadBudget = async () => {
                       setIsLoadingSheets(false);
                     }
                   }}
-                  className="text-[10px] bg-emerald-100 text-emerald-800 px-2 py-1 rounded border border-emerald-200 hover:bg-emerald-200 transition-colors"
+                  title="Reload available sheets" 
+                  className="text-xs text-emerald-800 rounded hover:bg-emerald-200 transition-colors px-2 py-1"
                 >
-                  🔄 Force Load
+                  🔄
                 </button>
               </div>
 

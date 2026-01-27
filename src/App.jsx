@@ -103,10 +103,6 @@ export default function BudgetApp() {
 
   const [isLoadingSheets, setIsLoadingSheets] = useState(false);
 
-
- 
-  // 3. EFFECT: Auto-fetch Sheet Names
- // 3. EFFECT: Auto-fetch Sheet Names
   useEffect(() => {
     const fetchSheetNames = async () => {
       const realId = getSpreadsheetId(spreadsheetInput);
@@ -115,7 +111,7 @@ export default function BudgetApp() {
         setIsLoadingSheets(true);
         try {
           console.log("Fetching sheets for ID:", realId);
-          // Send meta=true to get the list
+          //get list
           const res = await fetch(`${API_URL}?spreadsheetId=${realId}&meta=true`);
           const json = await res.json();
 
@@ -123,7 +119,7 @@ export default function BudgetApp() {
             console.log("✅ Sheets received:", json.allSheets);
             setAvailableSheets(json.allSheets);
             
-            // AUTO-SELECT: If current name is invalid, pick the first one
+            
             if (!sheetName || sheetName === "Sheet Name" || sheetName === "Sheet1") {
                setSheetName(json.allSheets[0]);
             }
@@ -136,10 +132,9 @@ export default function BudgetApp() {
       }
     };
 
-    const timer = setTimeout(fetchSheetNames, 1000); // 1-second debounce
+    const timer = setTimeout(fetchSheetNames, 1000); //timer to reload
     return () => clearTimeout(timer);
   }, [spreadsheetInput]);
-  // --- YOUR EXISTING LOGIC ---
 
   const onDragEnd = (result) => {
     const { source, destination } = result;
@@ -173,7 +168,6 @@ export default function BudgetApp() {
   };
 
 const loadBudget = async () => {
-    // 1. Validation
     if (!spreadsheetInput) return setSpreadsheetStatus("⚠️ Enter Link");
     if (!sheetName) return setSpreadsheetStatus("⚠️ Select a Sheet Name");
 
@@ -181,29 +175,25 @@ const loadBudget = async () => {
     setSpreadsheetStatus("⏳ Syncing...");
 
     try {
-      // 2. Fetch Data
       const url = `${API_URL}?spreadsheetId=${realId}&sheetName=${sheetName}`;
       const res = await fetch(url);
       const text = await res.text();
 
-      // 3. Catch HTML Errors
       if (text.trim().startsWith("<")) {
         throw new Error("Script Permissions Error");
       }
 
       const json = JSON.parse(text);
 
-      // 4. Update Dropdown (Just in case)
       if (json.allSheets) setAvailableSheets(json.allSheets);
 
-      // 5. Update Income Data
+      // update vars
       if (json.savedData) {
         setSalary(json.savedData.salary);
         setBonus(json.savedData.bonus);
         setStateCode(json.savedData.state);
       }
 
-      // 6. Handle "New" vs "Existing"
       if (json.status === "empty") {
         setItems([
           { id: '1', category: 'Rent', amount: 0, color: TAILWIND_COLORS[0] },
@@ -299,7 +289,7 @@ const loadBudget = async () => {
 
           <div className="flex flex-wrap gap-4 items-end">
             
-            {/* INPUT 1: LINK */}
+            {/* input 1: sheetlink */}
             <div className="flex-1 min-w-[300px]">
               <label className="text-xs font-bold text-gray-400 dark:text-gray-400 uppercase tracking-wider mb-2 block font-mono">
                 Spreadsheet Link
@@ -312,14 +302,12 @@ const loadBudget = async () => {
               />
             </div>
 
-            {/* INPUT 2: SHEET NAME (The Problem Child) */}
-            {/* --- DIAGNOSTIC SHEET SELECTOR --- */}
+            {/* input 2: sheet name selector */}
             <div className="w-64 relative z-50">
               <div className="flex justify-between items-center mb-1">
                 <label className="text-xs font-bold text-gray-400 dark:text-gray-400 uppercase tracking-wider block font-mono">
                   Sheet Name
                 </label>
-                {/* DEBUG BUTTON: Force load and show alert */}
                 <button
                   onClick={async (e) => {
                     e.preventDefault();
@@ -328,15 +316,13 @@ const loadBudget = async () => {
 
                     setIsLoadingSheets(true);
                     try {
-                      // 1. Fetch
                       const res = await fetch(`${API_URL}?spreadsheetId=${realId}&meta=true`);
                       const text = await res.text();
-                      console.log("RAW RESPONSE:", text); // Check Console!
+                      console.log("RAW RESPONSE:", text); 
 
-                      // 2. Parse
                       const json = JSON.parse(text);
                       console.log("340", json); 
-                      // 3. Check keys
+                 
                       if (json.allSheets) {
                         setAvailableSheets(json.allSheets);
                         alert(`✅ Success! Found ${json.allSheets.length} sheets: \n${json.allSheets.join(", ")}`);
@@ -366,13 +352,11 @@ const loadBudget = async () => {
                   autoComplete="off"
                 />
 
-                {/* VISIBLE LIST (Removed 'hidden' classes to debug) */}
                 {availableSheets.length > 0 && (
                   <ul className="absolute top-full left-0 right-0 mt-1 max-h-60 overflow-auto bg-white dark:bg-gray-800 border-2 border-emerald-500 rounded-xl shadow-2xl z-50 block">
                     {availableSheets.map((name) => (
                       <li
                         key={name}
-                        // PREVENT DEFAULT prevents input blur
                         onMouseDown={(e) => { e.preventDefault(); setSheetName(name); }}
                         className="px-4 py-3 hover:bg-emerald-100 dark:hover:bg-gray-600 cursor-pointer text-gray-900 dark:text-white font-bold border-b border-gray-100 dark:border-gray-700"
                       >
@@ -382,7 +366,6 @@ const loadBudget = async () => {
                   </ul>
                 )}
                 
-                {/* EMPTY STATE INDICATOR */}
                 {availableSheets.length === 0 && (
                    <div className="absolute top-full left-0 right-0 mt-1 p-2 bg-yellow-50 text-yellow-800 text-xs text-center border border-yellow-200 rounded hidden group-hover:block">
                       No sheets loaded yet. Click 'Force Load'.
@@ -391,8 +374,7 @@ const loadBudget = async () => {
               </div>
             </div>
 
-            {/* BUTTON: SYNC */}
-            <button 
+          <button 
               onClick={loadBudget} 
               className="bg-emerald-900 hover:bg-black dark:bg-emerald-700 dark:hover:bg-emerald-600 text-white font-bold py-3 px-8 rounded-xl shadow-lg transition-all active:scale-95 uppercase font-mono"
             >
@@ -400,7 +382,6 @@ const loadBudget = async () => {
             </button>
           </div>
 
-          {/* Status Message */}
           <div className="w-full text-center mt-4 font-bold text-emerald-600 dark:text-emerald-400 text-sm uppercase h-4">
             {spreadsheetStatus}
           </div>

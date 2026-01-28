@@ -318,3 +318,69 @@
             {spreadsheetStatus}
           </div>
         </div>
+
+
+
+
+
+        {/* Widget Buttons*/}
+        <div className="fixed z-50 transition-all duration-300
+  /* --- MOBILE: Floating Island Style --- */
+  bottom-6 left-1/2 -translate-x-1/2          
+  w-auto px-6 py-3                            
+  rounded-full                                
+  bg-white/70 dark:bg-gray-900/70             
+  backdrop-blur-md                            
+  // border border-gray-200/10 dark:border-gray-700/10 
+  shadow-xl                                   
+  flex items-center justify-center gap-4
+
+  /* --- LAPTOP (md:): Revert to Corner Bubbles --- */
+  md:bottom-8 md:right-8 md:left-auto md:translate-x-0 md:w-auto
+  md:bg-transparent md:dark:bg-transparent md:backdrop-blur-none
+  md:border-none md:shadow-none
+  md:p-0
+  md:gap-4 md:justify-end md:rounded-none
+">
+  {/* 1. Scratchpad */}
+  <button
+    onClick={() => setIsScratchOpen(!isScratchOpen)}
+    className="
+      w-14 h-14 md:w-16 md:h-16 
+      bg-linear-to-br from-gray-300 to-gray-700 text-white rounded-full shadow-lg 
+      flex items-center justify-center 
+      text-2xl md:text-3xl 
+      transition-transform hover:scale-110 active:scale-95 active:shadow-inner"
+    title="Scratchpad"
+  >
+    📝
+  </button>
+
+  {/* 2. Calculator */}
+  <button
+    onClick={() => setIsCalcOpen(!isCalcOpen)}
+    className="
+      w-14 h-14 md:w-16 md:h-16 
+      bg-linear-to-br from-blue-400 to-indigo-800 text-white rounded-full shadow-lg 
+      flex items-center justify-center 
+      text-2xl md:text-3xl 
+      transition-transform hover:scale-110 active:scale-95 active:shadow-inner"
+    title="Calculator"
+  >
+    🧮
+  </button>
+
+  {/* 3. Help */}
+  <button
+    onClick={() => setIsHelpOpen(!isHelpOpen)}
+    className="
+      w-14 h-14 md:w-16 md:h-16 
+      bg-linear-to-br from-lime-400 to-lime-700 text-white rounded-full shadow-lg 
+      flex items-center justify-center 
+      text-2xl md:text-5xl font-extrabold
+      transition-transform hover:scale-110 active:scale-95 active:shadow-inner border-emerald-200/50"
+    title="Help & Instructions"
+  >
+    ?
+  </button>
+</div>

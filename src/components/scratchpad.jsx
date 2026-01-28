@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 
 const ScratchpadWidget = ({ isOpen, onClose, value, onChange, isCalcOpen }) => {
-  const [offset, setOffset] = useState({ right: 20, bottom: 20 });
+  const [offset, setOffset] = useState({ right: 32, bottom: 112 });
   const [size, setSize] = useState({ width: 300, height: 250 });
   
   const [isDragging, setIsDragging] = useState(false);
@@ -49,12 +49,10 @@ const ScratchpadWidget = ({ isOpen, onClose, value, onChange, isCalcOpen }) => {
     }
   };
 
-  // --- GLOBAL MOVE LISTENER ---
   useEffect(() => {
     const handleMove = (e) => {
       if (!isDragging && !isResizing) return;
 
-      // Prevent scrolling on mobile while dragging
       if (e.type === 'touchmove') {
         e.preventDefault();
       }
@@ -63,7 +61,6 @@ const ScratchpadWidget = ({ isOpen, onClose, value, onChange, isCalcOpen }) => {
       const clientY = e.type.includes('touch') ? e.touches[0].clientY : e.clientY;
 
       if (isDragging) {
-        // Inverted delta because we are moving 'right' and 'bottom' values
         const dx = dragStart.current.x - clientX; 
         const dy = dragStart.current.y - clientY;
         
@@ -108,7 +105,7 @@ const ScratchpadWidget = ({ isOpen, onClose, value, onChange, isCalcOpen }) => {
 
   return (
     <div 
-      className="fixed bg-white dark:bg-gray-800 rounded-3xl shadow-2xl border border-gray-200 dark:border-gray-700 overflow-hidden z-[200] flex flex-col" 
+      className="fixed bg-white dark:bg-gray-800 rounded-3xl shadow-2xl border border-gray-200 dark:border-gray-700 overflow-hidden z-45 flex flex-col" 
       style={{ 
         right: `${offset.right}px`, 
         bottom: `${offset.bottom}px`, 

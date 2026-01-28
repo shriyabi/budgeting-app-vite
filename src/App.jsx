@@ -627,7 +627,7 @@ export default function BudgetApp() {
               {/* Categories List */}
               <div className="bg-white dark:bg-gray-800 rounded-3xl border border-gray-100 dark:border-gray-700 shadow-xs overflow-hidden flex flex-col relative h-full transition-colors duration-300">
 
-                <div className="flex-1 grid grid-cols-1 grid-rows-1 overflow-y-auto p-4 smooth-scroll no-scrollbar relative min-h-0">
+                <div className="flex-1 grid grid-cols-1 grid-rows-1 overflow-y-auto p-4 smooth-scroll relative min-h-0">
 
                   {/* LAYER 1: category div visual */}
                   <div className="col-start-1 row-start-1 z-0">

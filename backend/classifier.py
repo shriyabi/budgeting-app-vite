@@ -56,4 +56,7 @@ async def classify_transactions(request: ClassifyRequest):
         print(f"AI Error: {e}")
         raise HTTPException(status_code=500, detail=f"AI Classification Failed: {str(e)}")
 
+@app.get("/")
+async def root():
+    return {"status": "Alive", "message": "Budget Backend is running!"}
 # uvicorn classifier:app --reload

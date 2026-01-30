@@ -274,7 +274,7 @@ export default function HelpWidget({ isOpen, onClose }) {
                         <div className="space-y-6">
                             <div className="text-center mb-6">
                                 <h3 className="text-xl font-bold font-serif mb-2">Setting up Recurring Expenses</h3>
-                                <p className="text-sm text-gray-500">Configure what expenses are tracked.</p>
+                                <p className="text-sm text-gray-500">Configure what expenses are tracked using Advanced Settings.</p>
                             </div>
 
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

@@ -79,7 +79,7 @@ export default function HelpWidget({ isOpen, onClose }) {
 
                                     <div className="overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-700 shadow-xs bg-white dark:bg-gray-800">
                                         <table className="w-full text-xs md:text-sm text-left whitespace-nowrap">
-                                           
+
                                             <thead className="bg-emerald-50 dark:bg-emerald-900/30 text-emerald-800 dark:text-emerald-200 uppercase text-[10px] md:text-xs tracking-wider">
                                                 <tr>
                                                     <th className="p-2 md:p-3 font-extrabold border-b border-emerald-100 dark:border-emerald-800/30 w-10 text-center border-r border-emerald-100/50">#</th>
@@ -107,13 +107,13 @@ export default function HelpWidget({ isOpen, onClose }) {
                                                 <tr className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
                                                     <td className="p-2 md:p-3 font-bold text-gray-400 text-center bg-gray-50/50 dark:bg-gray-900/50 border-r border-gray-100 dark:border-gray-700">3</td>
                                                     <td className="p-2 md:p-3 text-gray-700 dark:text-gray-300 font-sans font-bold border-r border-gray-100 dark:border-gray-700">Net Income</td>
-                                                    <td className="p-2 md:p-3 text-emerald-600 dark:text-emerald-400 font-bold border-r border-gray-100 dark:border-gray-700">$1,831</td>
+                                                    <td className="p-2 md:p-3 text-emerald-600 dark:text-emerald-400 font-bold border-r border-gray-100 dark:border-gray-700">$XXXXX</td>
                                                     <td colSpan="3" className="bg-gray-50/30 dark:bg-gray-900/30"></td>
                                                 </tr>
                                                 <tr className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
                                                     <td className="p-2 md:p-3 font-bold text-gray-400 text-center bg-gray-50/50 dark:bg-gray-900/50 border-r border-gray-100 dark:border-gray-700">4</td>
                                                     <td className="p-2 md:p-3 text-gray-700 dark:text-gray-300 font-sans font-bold border-r border-gray-100 dark:border-gray-700">Annual Total</td>
-                                                    <td className="p-2 md:p-3 text-gray-900 dark:text-white font-bold border-r border-gray-100 dark:border-gray-700">$135,000</td>
+                                                    <td className="p-2 md:p-3 text-gray-900 dark:text-white font-bold border-r border-gray-100 dark:border-gray-700">$XXXXXXXX</td>
                                                     <td colSpan="3" className="bg-gray-50/30 dark:bg-gray-900/30"></td>
                                                 </tr>
 
@@ -130,7 +130,7 @@ export default function HelpWidget({ isOpen, onClose }) {
                                                     <td className="p-2 md:p-3 font-bold text-gray-400 text-center bg-gray-50/50 dark:bg-gray-900/50 border-r border-gray-100 dark:border-gray-700">6</td>
                                                     <td className="p-2 md:p-3 font-bold border-r border-gray-100 dark:border-gray-700 text-gray-800 dark:text-gray-200">
                                                         <span className="w-2 h-2 rounded-full bg-emerald-400 inline-block mr-2"></span>
-                                                        Cry
+                                                        Cat. A
                                                     </td>
                                                     <td className="p-2 md:p-3 border-r border-gray-100 dark:border-gray-700 text-gray-600 dark:text-gray-400">$50</td>
                                                     <td className="p-2 md:p-3 border-r border-gray-100 dark:border-gray-700 text-xs text-gray-500">Weekly</td>
@@ -144,13 +144,13 @@ export default function HelpWidget({ isOpen, onClose }) {
                                                     <td className="p-2 md:p-3 font-bold text-gray-400 text-center bg-gray-50/50 dark:bg-gray-900/50 border-r border-gray-100 dark:border-gray-700">7</td>
                                                     <td className="p-2 md:p-3 font-bold border-r border-gray-100 dark:border-gray-700 text-gray-400 line-through decoration-rose-500/50">
                                                         <span className="w-2 h-2 rounded-full bg-rose-400 inline-block mr-2 opacity-50"></span>
-                                                        Rent
+                                                        Cat. B
                                                     </td>
                                                     <td className="p-2 md:p-3 border-r border-gray-100 dark:border-gray-700 text-gray-400">$20</td>
                                                     <td className="p-2 md:p-3 border-r border-gray-100 dark:border-gray-700 text-xs text-gray-400">Weekly</td>
                                                     <td className="p-2 md:p-3 border-r border-gray-100 dark:border-gray-700 text-xs text-gray-400">2026-01-27</td>
                                                     <td className="p-2 md:p-3 text-center">
-                                                         <input type="checkbox" readOnly className="w-4 h-4 rounded text-gray-300 border-gray-300 cursor-default" />
+                                                        <input type="checkbox" readOnly className="w-4 h-4 rounded text-gray-300 border-gray-300 cursor-default" />
                                                     </td>
                                                 </tr>
 
@@ -158,13 +158,13 @@ export default function HelpWidget({ isOpen, onClose }) {
                                                     <td className="p-2 md:p-3 font-bold text-gray-400 text-center bg-gray-50/50 dark:bg-gray-900/50 border-r border-gray-100 dark:border-gray-700">8</td>
                                                     <td className="p-2 md:p-3 font-bold border-r border-gray-100 dark:border-gray-700 text-gray-800 dark:text-gray-200">
                                                         <span className="w-2 h-2 rounded-full bg-blue-400 inline-block mr-2"></span>
-                                                        food
+                                                        Cat. C
                                                     </td>
                                                     <td className="p-2 md:p-3 border-r border-gray-100 dark:border-gray-700 text-gray-600 dark:text-gray-400">$500</td>
                                                     <td className="p-2 md:p-3 border-r border-gray-100 dark:border-gray-700 text-xs text-gray-500">Weekly</td>
                                                     <td className="p-2 md:p-3 border-r border-gray-100 dark:border-gray-700 text-xs text-gray-500">2026-01-27</td>
                                                     <td className="p-2 md:p-3 text-center">
-                                                         <input type="checkbox" checked readOnly className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 border-gray-300 cursor-default" />
+                                                        <input type="checkbox" checked readOnly className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 border-gray-300 cursor-default" />
                                                     </td>
                                                 </tr>
 
@@ -239,7 +239,9 @@ export default function HelpWidget({ isOpen, onClose }) {
                                         </li>
                                         <li className="relative">
                                             <span className="absolute -left-[23px] md:-left-[31px] bg-purple-100 text-purple-600 w-5 h-5 md:w-6 md:h-6 rounded-full flex items-center justify-center text-[10px] md:text-xs font-bold border-2 border-white dark:border-gray-800">3</span>
-                                            <p className="text-xs md:text-sm">Select <b>"Start from Scratch"</b> from the drop-down to smart-scan for recurring bills due in this period!</p>
+                                            <p className="text-xs md:text-sm">
+                                                Select <b>"Start from Scratch"</b> or enter a specific <b>Sheet Name</b> to copy data—both options will smart-scan for recurring bills due in this period!
+                                            </p>
                                         </li>
                                     </ol>
                                 </div>

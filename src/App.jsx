@@ -345,15 +345,17 @@ export default function BudgetApp() {
           },
           
           //intgerate spending gtracking
-          items: items.map(item => ({
+          items: items.map(item => {
+            const hasRecurrence = item.recurrenceFreq && item.recurrenceFreq.trim() !== "";
+            return {
              category: item.category,
              amount: item.amount,
              recurrenceFreq: item.recurrenceFreq,
              lastPaidDate: item.lastPaidDate,
-             isActive: item.isActive,
+             isActive: hasRecurrence,
              spent: item.spent || 0, 
              color: item.color
-          })),
+            }}),
 
           syncDesign: shouldSyncDesign
         })
@@ -681,7 +683,7 @@ const renderProgressSlice = (props) => {
             </div>
 
             {/* input 2: sheet name selector */}
-            <div className="w-full md:w-64 relative z-50">
+            <div className="w-full md:w-64 relative z-40">
               <div className="flex justify-between items-center mb-1">
                 <label className="text-xs font-bold text-gray-400 dark:text-gray-400 uppercase tracking-wider block font-mono">
                   Sheet Name
@@ -1218,6 +1220,7 @@ const renderProgressSlice = (props) => {
       
       // option 1: standard budget view
       <div className="w-full font-mono uppercase mb-4 h-[400px] lg:h-auto lg:flex-1 min-h-[300px] relative">
+        <div className="absolute inset-0 z-10">
         <ResponsiveContainer width="100%" height="100%">
           <PieChart>
             <Pie
@@ -1248,20 +1251,21 @@ const renderProgressSlice = (props) => {
             />
           </PieChart>
         </ResponsiveContainer>
-        
-        {/* Center Text: Total Planned */}
-        <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none pb-12">
-            <span className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mb-1">Total Plan</span>
-            <span className="text-2xl font-black font-mono text-emerald-600 dark:text-emerald-400">
-            ${items.reduce((sum, item) => sum + (item.amount || 0), 0).toLocaleString()}
-            </span>
-        </div>
+      </div>
+        {/* Total Planned */}
+<div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none pb-12 z-0">
+    <span className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mb-1">Total Plan</span>
+    <span className="text-2xl font-black font-mono text-emerald-600 dark:text-emerald-400">
+       ${items.reduce((sum, item) => sum + (item.amount || 0), 0).toLocaleString()}
+    </span>
+</div>
       </div>
 
     ) : (
 
       // option 2: percentage spent overlay
       <div className="w-full font-mono uppercase mb-4 h-[400px] lg:h-auto lg:flex-1 min-h-[300px] relative">
+        <div className="absolute inset-0 z-10">
         <ResponsiveContainer width="100%" height="100%">
           <PieChart>
             <Pie
@@ -1315,8 +1319,8 @@ const renderProgressSlice = (props) => {
             />
           </PieChart>
         </ResponsiveContainer>
-
-        <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none pb-12">
+        </div>
+        <div className="absolute inset-0 z-0 flex flex-col items-center justify-center pointer-events-none pb-12">
           <span className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mb-1">
             Total Spent
           </span>

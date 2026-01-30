@@ -1,204 +1,7 @@
- const onDragEnd = (result) => {
-    const { source, destination } = result;
-    if (!destination) return;
-    const amt = Number(transferAmount);
 
-    if (source.droppableId === 'unallocated-source') {
-      setItems(prev => {
-        const copy = [...prev];
-        copy[destination.index] = { ...copy[destination.index], amount: copy[destination.index].amount + amt };
-        return copy;
-      });
-      return;
-    }
-
-    if (source.droppableId === 'budget-list' && destination.droppableId === 'budget-list') {
-      if (source.index === destination.index) {
-        setTransferStatus(`❌ Transfer failed`);
-        return;
-      }
-
-      //moving transfer amount money to another category 
-      setItems(prev => {
-        const copy = [...prev];
-        copy[source.index] = { ...copy[source.index], amount: copy[source.index].amount - amt };
-        copy[destination.index] = { ...copy[destination.index], amount: copy[destination.index].amount + amt };
-        return copy;
-      });
-      //setStatus(`✅ Moved $${amt}`);
-      setTransferStatus(`✅ Moved $${amt}`);
-    }
-  };
-
-  const loadBudget = async () => {
-    if (!spreadsheetInput) {
-      //return setStatus("⚠️ Enter Link or ID");
-      return setSpreadsheetStatus("⚠️ Enter Link or ID");
-    }
-    const realId = getSpreadsheetId(spreadsheetInput);
-    //setStatus("⏳ Syncing...");
-    setSpreadsheetStatus("⏳ Syncing...");
-    try {
-      const res = await fetch(`${API_URL}?spreadsheetId=${realId}&sheetName=${sheetName}`);
-      const json = await res.json();
-      if (json.allSheets) setAvailableSheets(json.allSheets);
-      if (json.savedData) { setSalary(json.savedData.salary); setBonus(json.savedData.bonus); setStateCode(json.savedData.state); }
-      if (json.status === "empty") {
-        setItems([{ id: '1', category: 'Rent', amount: 0, color: TAILWIND_COLORS[0] }, { id: '2', category: 'Groceries', amount: 0, color: TAILWIND_COLORS[1] }]);
-      } else {
-        setItems((json.items || []).map((i, idx) => ({ ...i, id: `item-${idx}`, color: i.color || TAILWIND_COLORS[idx % TAILWIND_COLORS.length] })));
-        //setStatus("✅ Data Synced");
-        setSpreadsheetStatus("✅ Data Synced");
-      }
-    } catch (e) {
-      //setStatus(`❌ Error: ${e.message}`); 
-      setSpreadsheetStatus(`❌ Error: ${e.message}`);
-    }
-  };
-
-
-  const saveBudget = async () => {
-    const realId = getSpreadsheetId(spreadsheetInput);
-
-    // save budget colors pop up: allows users to transfer colors to highlight the categories in their spreadsheet
-    const shouldSyncDesign = window.confirm(
-      "Do you want to apply your category colors to the Google Sheet?"
-    );
-
-    //setStatus("⏳ Saving...");
-    setSpreadsheetStatus("⏳ Saving...");
-    try {
-      console.log("SENDING TO GOOGLE:", JSON.stringify({
-        syncDesign: shouldSyncDesign,
-        firstItemColor: items[0].color,
-      }, null, 2));
-
-      console.log(items);
-
-      const res = await fetch(API_URL, {
-        method: "POST",
-        body: JSON.stringify({
-          spreadsheetId: realId,
-          sheetName: sheetName.trim() || "MyBudget",
-          netMonthlyIncome,
-          incomeData: { salary, bonus, state: stateCode },
-          items,
-          syncDesign: shouldSyncDesign
-        })
-      });
-      const json = await res.json();
-      if (json.allSheets) setAvailableSheets(json.allSheets);
-      //setStatus("✅ Saved!");
-      setSpreadsheetStatus("✅ Saved!");
-    } catch (e) {
-      //setStatus(`❌ Error: ${e.message}`); 
-      setSpreadsheetStatus(`❌ Error: ${e.message}`);
-    }
-  };
-
-  const getSpreadsheetId = (input) => { const match = input.match(/\/d\/([a-zA-Z0-9-_]+)/); return match ? match[1] : input; };
-  const addNewCategory = () => {
-    if (!newCategory) return;
-    const nextColor = TAILWIND_COLORS[items.length % TAILWIND_COLORS.length];
-    setItems([...items, { id: `new-${Date.now()}`, category: newCategory, amount: 0, color: nextColor }]);
-    setNewCategory('');
-  };
-
-  if (!user) {
-    return (
-      <div className="min-h-screen flex font-mono items-center justify-center bg-gray-50 dark:bg-gray-950 font-sans transition-colors duration-300">
-        <div className="bg-white dark:bg-gray-900 p-10 rounded-3xl shadow-2xl text-center max-w-sm w-full border border-gray-100 dark:border-gray-800 relative overflow-hidden transition-colors duration-300">
-          <div className="mb-8 relative">
-            <div className="w-20 h-20 bg-linear-to-br from-[#064e3b] to-[#10b981] rounded-2xl mx-auto flex items-center justify-center shadow-xl z-10 relative border border-[#34d399]/30">
-              <span className="text-4xl animate-pulse filter drop-shadow-md">💰</span>
-            </div>
-          </div><h1 className="text-3xl font-extrabold mb-2 text-gray-900 dark:text-gray-100 tracking-tight font-serif"> Encourage-mint </h1>
-          <p className="text-gray-500 dark:text-gray-400 mb-8 font-medium font-serif">Budgeting made more cents</p>
-          <div className="flex justify-center"><GoogleLogin onSuccess={handleLoginSuccess} useOneTap shape="pill" /></div>
-        </div>
-      </div>
-    );
-  }
-
-
-
-
-  const loadBudget = async () => {
-    if (!spreadsheetInput) {
-      return setSpreadsheetStatus("⚠️ Enter Link or ID");
-    }
-    const realId = getSpreadsheetId(spreadsheetInput);
-    setSpreadsheetStatus("⏳ Syncing...");
-    
-    try {
-      const res = await fetch(`${API_URL}?spreadsheetId=${realId}&sheetName=${sheetName}`);
-      const json = await res.json();
-      
-      // Update sheets list again just in case
-      if (json.allSheets) setAvailableSheets(json.allSheets);
-      
-      if (json.savedData) { 
-        setSalary(json.savedData.salary); 
-        setBonus(json.savedData.bonus); 
-        setStateCode(json.savedData.state); 
-      }
-      
-      if (json.status === "empty") {
-        setItems([
-          { id: '1', category: 'Rent', amount: 0, color: TAILWIND_COLORS[0] }, 
-          { id: '2', category: 'Groceries', amount: 0, color: TAILWIND_COLORS[1] }
-        ]);
-      } else {
-        setItems((json.items || []).map((i, idx) => ({ 
-          ...i, 
-          id: `item-${idx}`, 
-          color: i.color || TAILWIND_COLORS[idx % TAILWIND_COLORS.length] 
-        })));
-        setSpreadsheetStatus("✅ Data Synced");
-      }
-    } catch (e) {
-      setSpreadsheetStatus(`❌ Error: ${e.message}`);
-    }
-  };
-
-
-
-   useEffect(() => {
-    const fetchSheetNames = async () => {
-      const realId = getSpreadsheetId(spreadsheetInput);
-
-      // Basic validation: IDs are usually long. Don't fetch on short text.
-      if (realId && realId.length > 20) {
-        setIsLoadingSheets(true);
-        try {
-          // We call the API just to get metadata. 
-          // Your backend should return { allSheets: [...] } even without a specific sheetName param.
-          const res = await fetch(`${API_URL}?spreadsheetId=${realId}&meta=true`);
-          const json = await res.json();
-
-          if (json.allSheets) {
-            setAvailableSheets(json.allSheets);
-            // Optional: If user hasn't typed a name yet, default to the first sheet?
-            // if (!sheetName && json.allSheets.length > 0) setSheetName(json.allSheets[0]);
-          }
-        } catch (e) {
-          console.error("Background sheet fetch failed:", e);
-        } finally {
-          setIsLoadingSheets(false);
-        }
-      }
-    };
-
-    // Debounce: Wait 600ms after typing stops before calling API
-    const timer = setTimeout(fetchSheetNames, 600);
-    return () => clearTimeout(timer);
-  }, [spreadsheetInput]); // Dependency: Runs whenever URL input changes
-
-
- const loadBudget = async () => {
-    if (!spreadsheetInput) {
-      return setSpreadsheetStatus("⚠️ Enter Link or ID");
-    }
+   const loadBudget = async () => {
+    if (!spreadsheetInput) return setSpreadsheetStatus("⚠️ Enter Link");
+    if (!sheetName) return setSpreadsheetStatus("⚠️ Select a Sheet Name");
 
     const realId = getSpreadsheetId(spreadsheetInput);
     setSpreadsheetStatus("⏳ Syncing...");
@@ -206,24 +9,21 @@
     try {
       const url = `${API_URL}?spreadsheetId=${realId}&sheetName=${sheetName}`;
       const res = await fetch(url);
-      const textResponse = await res.text();
+      const text = await res.text();
 
-      if (textResponse.trim().startsWith("<")) {
-        throw new Error("Script Permissions Error (Received HTML)");
+      if (text.trim().startsWith("<")) {
+        throw new Error("Script Permissions Error");
       }
 
-      const json = JSON.parse(textResponse);
+      const json = JSON.parse(text);
 
       if (json.allSheets) setAvailableSheets(json.allSheets);
 
+      // update vars
       if (json.savedData) {
         setSalary(json.savedData.salary);
         setBonus(json.savedData.bonus);
         setStateCode(json.savedData.state);
-      }
-
-      if (json.status === "error") {
-        throw new Error(json.message);
       }
 
       if (json.status === "empty") {
@@ -232,6 +32,8 @@
           { id: '2', category: 'Groceries', amount: 0, color: TAILWIND_COLORS[1] }
         ]);
         setSpreadsheetStatus("✨ New Budget Ready");
+      } else if (json.status === "error") {
+        throw new Error(json.message);
       } else {
         setItems((json.items || []).map((i, idx) => ({
           ...i,
@@ -247,140 +49,31 @@
     }
   };
 
+  const saveBudget = async () => {
+    const realId = getSpreadsheetId(spreadsheetInput);
 
+    // Save budget colors pop up
+    const shouldSyncDesign = window.confirm(
+      "Do you want to apply your category colors to the Google Sheet?"
+    );
 
-    {/* Sync Settings Div (top) */}
-        <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-xs border border-gray-100 dark:border-gray-700 mb-8 transition-colors duration-300">
-
-          <div className="flex flex-wrap gap-4 items-end">
-            <div className="flex-1 min-w-[300px]">
-              <label className="text-xs font-bold text-gray-400 dark:text-gray-400 uppercase tracking-wider mb-2 block font-mono">Spreadsheet Link</label>
-              <input className="w-full p-3 bg-gray-50 dark:bg-gray-700 dark:text-white dark:border-gray-600 border border-gray-200 rounded-xl font-mono text-sm" placeholder="Paste ID or Link..." value={spreadsheetInput} onChange={e => setSpreadsheetInput(e.target.value)} />
-            </div>
-            <div className="w-64 relative z-50">
-              <label className="text-xs font-bold text-gray-400 dark:text-gray-400 uppercase tracking-wider mb-2 block font-mono">
-                Sheet Name
-                {/* Show tiny loader next to label if fetching */}
-                {isLoadingSheets && <span className="ml-2 animate-pulse text-emerald-500">Loading...</span>}
-              </label>
-
-              <div className="relative group">
-                <input
-                  type="text"
-                  className="peer w-full font-serif p-3 pr-10 bg-gray-50 dark:bg-gray-700 dark:text-white dark:border-gray-600 border border-gray-200 rounded-xl font-bold text-gray-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 placeholder-gray-400"
-                  value={sheetName}
-                  onChange={e => setSheetName(e.target.value)}
-                  placeholder={isLoadingSheets ? "Fetching sheets..." : "Type new or select..."}
-                  autoComplete="off"
-                />
-
-                {/* Arrow Icon (Spin if loading, Arrow if not) */}
-                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-gray-500 dark:text-gray-300">
-                  {isLoadingSheets ? (
-                    // SPINNER ICON
-                    <svg className="animate-spin h-4 w-4 text-emerald-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                    </svg>
-                  ) : (
-                    // ARROW ICON
-                    <svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">
-                      <path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z" />
-                    </svg>
-                  )}
-                </div>
-
-                {/* The List */}
-                <ul className="absolute top-full left-0 right-0 mt-1 max-h-60 overflow-auto bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-xl shadow-xl z-50 hidden peer-focus:block hover:block">
-                  {availableSheets.length > 0 ? (
-                    availableSheets.map((name) => (
-                      <li
-                        key={name}
-                        onMouseDown={(e) => { e.preventDefault(); setSheetName(name); }}
-                        className="px-4 py-3 hover:bg-emerald-50 dark:hover:bg-gray-700 cursor-pointer text-gray-700 dark:text-gray-200 font-bold border-b last:border-0 border-gray-100 dark:border-gray-700 transition-colors"
-                      >
-                        {name}
-                      </li>
-                    ))
-                  ) : (
-                    <li className="px-4 py-3 text-gray-400 text-sm italic">
-                      {isLoadingSheets ? "Loading sheets..." : "Enter URL to load sheets"}
-                    </li>
-                  )}
-                </ul>
-              </div>
-            </div>
-            <button onClick={loadBudget} className="bg-emerald-900 hover:bg-black dark:bg-emerald-700 dark:hover:bg-emerald-600 text-white font-bold py-3 px-8 rounded-xl shadow-lg transition-all active:scale-95 uppercase font-mono">Sync Data</button>
-          </div>
-
-          <div className="w-full text-center mt-4 font-bold text-emerald-600 dark:text-emerald-400 text-sm uppercase h-4">
-            {/* {status} */}
-            {spreadsheetStatus}
-          </div>
-        </div>
-
-
-
-
-
-        {/* Widget Buttons*/}
-        <div className="fixed z-50 transition-all duration-300
-  /* --- MOBILE: Floating Island Style --- */
-  bottom-6 left-1/2 -translate-x-1/2          
-  w-auto px-6 py-3                            
-  rounded-full                                
-  bg-white/70 dark:bg-gray-900/70             
-  backdrop-blur-md                            
-  // border border-gray-200/10 dark:border-gray-700/10 
-  shadow-xl                                   
-  flex items-center justify-center gap-4
-
-  /* --- LAPTOP (md:): Revert to Corner Bubbles --- */
-  md:bottom-8 md:right-8 md:left-auto md:translate-x-0 md:w-auto
-  md:bg-transparent md:dark:bg-transparent md:backdrop-blur-none
-  md:border-none md:shadow-none
-  md:p-0
-  md:gap-4 md:justify-end md:rounded-none
-">
-  {/* 1. Scratchpad */}
-  <button
-    onClick={() => setIsScratchOpen(!isScratchOpen)}
-    className="
-      w-14 h-14 md:w-16 md:h-16 
-      bg-linear-to-br from-gray-300 to-gray-700 text-white rounded-full shadow-lg 
-      flex items-center justify-center 
-      text-2xl md:text-3xl 
-      transition-transform hover:scale-110 active:scale-95 active:shadow-inner"
-    title="Scratchpad"
-  >
-    📝
-  </button>
-
-  {/* 2. Calculator */}
-  <button
-    onClick={() => setIsCalcOpen(!isCalcOpen)}
-    className="
-      w-14 h-14 md:w-16 md:h-16 
-      bg-linear-to-br from-blue-400 to-indigo-800 text-white rounded-full shadow-lg 
-      flex items-center justify-center 
-      text-2xl md:text-3xl 
-      transition-transform hover:scale-110 active:scale-95 active:shadow-inner"
-    title="Calculator"
-  >
-    🧮
-  </button>
-
-  {/* 3. Help */}
-  <button
-    onClick={() => setIsHelpOpen(!isHelpOpen)}
-    className="
-      w-14 h-14 md:w-16 md:h-16 
-      bg-linear-to-br from-lime-400 to-lime-700 text-white rounded-full shadow-lg 
-      flex items-center justify-center 
-      text-2xl md:text-5xl font-extrabold
-      transition-transform hover:scale-110 active:scale-95 active:shadow-inner border-emerald-200/50"
-    title="Help & Instructions"
-  >
-    ?
-  </button>
-</div>
+    setSpreadsheetStatus("⏳ Saving...");
+    try {
+      const res = await fetch(API_URL, {
+        method: "POST",
+        body: JSON.stringify({
+          spreadsheetId: realId,
+          sheetName: sheetName.trim() || "MyBudget",
+          netMonthlyIncome,
+          incomeData: { salary, bonus, state: stateCode },
+          items,
+          syncDesign: shouldSyncDesign
+        })
+      });
+      const json = await res.json();
+      if (json.allSheets) setAvailableSheets(json.allSheets);
+      setSpreadsheetStatus("✅ Saved!");
+    } catch (e) {
+      setSpreadsheetStatus(`❌ Error: ${e.message}`);
+    }
+  };

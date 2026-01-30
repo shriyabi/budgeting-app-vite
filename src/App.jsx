@@ -56,6 +56,95 @@ const getSpreadsheetId = (input) => {
   return null;
 };
 
+// --- BUDGET ENGINE ---
+const BudgetEngine = {
+  // Helper: Parse YYYY-MM-DD to Local Midnight (Fixes Timezone Bugs)
+  parseLocalDate: (dateStr) => {
+    if (!dateStr) return new Date();
+    const parts = dateStr.split('-'); // 2026-02-01
+    // Note: Month is 0-indexed in JS (0=Jan, 1=Feb)
+    return new Date(parts[0], parts[1] - 1, parts[2]);
+  },
+
+  // 1. Calculate Income & Window
+  calculateBudgetIncome: (netAnnual, payFrequency, budgetDuration, startDateStr) => {
+    const start = BudgetEngine.parseLocalDate(startDateStr);
+
+    let end = new Date(start);
+    let label = "";
+    let total = 0;
+
+    switch (budgetDuration) {
+      case 'Weekly':
+        end.setDate(start.getDate() + 6); 
+        end.setHours(23, 59, 59, 999);
+        label = `Weekly (${start.toLocaleDateString()})`;
+        total = netAnnual / 52;
+        break;
+      case 'Bi-Weekly':
+        end.setDate(start.getDate() + 13); 
+        end.setHours(23, 59, 59, 999);
+        label = `Bi-Weekly (${start.toLocaleDateString()})`;
+        total = netAnnual / 26;
+        break;
+      case 'Monthly':
+        end = new Date(start.getFullYear(), start.getMonth() + 1, 0);
+        end.setHours(23, 59, 59, 999);
+        label = `Monthly (${start.toLocaleString('default', { month: 'long' })})`;
+        total = netAnnual / 12;
+        break;
+      case 'Annual':
+        end.setFullYear(start.getFullYear() + 1);
+        label = `Annual (${start.getFullYear()})`;
+        total = netAnnual;
+        break;
+      default:
+        total = netAnnual / 12;
+    }
+
+    return { total, label, start, end };
+  },
+
+  //filtering
+  shouldIncludeExpense: (item, budgetStart, budgetEnd) => {
+
+    if (item.isActive === false) return false;
+
+    if (!item.isRecurring) return false;
+
+    if (!item.lastPaidDate || !item.recurrenceFreq) return false;
+
+    const lastPaid = new Date(item.lastPaidDate); 
+    lastPaid.setHours(12, 0, 0, 0);
+
+    const start = new Date(budgetStart);
+    start.setHours(0, 0, 0, 0);
+    const end = new Date(budgetEnd);
+    end.setHours(23, 59, 59, 999);
+
+    let nextDueDate = new Date(lastPaid);
+    let safety = 0;
+
+    while (nextDueDate <= end && safety < 500) {
+      switch (item.recurrenceFreq) {
+        case 'Weekly': nextDueDate.setDate(nextDueDate.getDate() + 7); break;
+        case 'Bi-Weekly': nextDueDate.setDate(nextDueDate.getDate() + 14); break;
+        case 'Monthly': nextDueDate.setMonth(nextDueDate.getMonth() + 1); break;
+        case 'Semi-Annual': nextDueDate.setMonth(nextDueDate.getMonth() + 6); break;
+        case 'Annual': nextDueDate.setFullYear(nextDueDate.getFullYear() + 1); break;
+        default: return false;
+      }
+      if (nextDueDate >= start && nextDueDate <= end) {
+        return true;
+      }
+
+      safety++;
+    }
+
+    return false;
+  }
+};
+
 
 export default function BudgetApp() {
   const [user, setUser] = useState(null);
@@ -78,10 +167,28 @@ export default function BudgetApp() {
   const [mobileExpand, setMobileExpand] = useState(false);
   const [showTransferHelp, setShowTransferHelp] = useState(false);
   const [showSheetDropdown, setShowSheetDropdown] = useState(false);
+  const [payFrequency, setPayFrequency] = useState('Bi-Weekly');
+  const [salaryFrequency, setSalaryFrequency] = useState('Annual');
+  const [budgetDuration, setBudgetDuration] = useState('Monthly'); // Weekly, Bi-Weekly, Monthly, Annual
+  const [targetDate, setTargetDate] = useState(new Date().toISOString().slice(0, 10)); // YYYY-MM-DD
+  const [showSetupWizard, setShowSetupWizard] = useState(false);
+  const [copyFromSheet, setCopyFromSheet] = useState('');
+  //const [incomeDisplayMode, setIncomeDisplayMode] = useState('Monthly'); // Visual Toggle
+  const [showAdvanced, setShowAdvanced] = useState(false);
 
-  const netMonthlyIncome = useMemo(() => {
-    const grossAnnual = Number(salary) + Number(bonus);
+  // --- CALCULATIONS ---
+
+  // 1. calc net income (defualt: annual)
+  const netAnnualIncome = useMemo(() => {
+    let grossSalary = Number(salary);
+
+    if (salaryFrequency === 'Monthly') grossSalary *= 12;
+    else if (salaryFrequency === 'Bi-Weekly') grossSalary *= 26;
+    else if (salaryFrequency === 'Weekly') grossSalary *= 52;
+
+    const grossAnnual = grossSalary + Number(bonus);
     const taxableIncome = Math.max(0, grossAnnual - STANDARD_DEDUCTION);
+
     let federalTax = 0;
     let previousLimit = 0;
     for (let bracket of FEDERAL_TAX_BRACKETS) {
@@ -92,17 +199,29 @@ export default function BudgetApp() {
       }
     }
     const totalTax = federalTax + (Math.min(grossAnnual, SOCIAL_SECURITY_CAP) * 0.062) + (grossAnnual * 0.0145) + (grossAnnual * (STATE_TAX_RATES[stateCode] || 0.00));
-    return Math.floor((grossAnnual - totalTax) / 12);
-  }, [salary, bonus, stateCode]);
 
+    return Math.floor(grossAnnual - totalTax);
+  }, [salary, bonus, stateCode, salaryFrequency]);
+
+  const effectiveBudgetIncome = useMemo(() => {
+    return Math.floor(BudgetEngine.calculateBudgetIncome(
+      netAnnualIncome,
+      payFrequency,
+      budgetDuration,
+      targetDate
+    ).total);
+  }, [netAnnualIncome, payFrequency, budgetDuration, targetDate]);
+
+  //for salary div
   const totalAllocated = items.reduce((sum, i) => sum + i.amount, 0);
-  const unallocatedFunds = netMonthlyIncome - totalAllocated;
-  const progressPercent = Math.min(100, Math.max(0, (totalAllocated / netMonthlyIncome) * 100));
+  const unallocatedFunds = effectiveBudgetIncome - totalAllocated;
+  const progressPercent = Math.min(100, Math.max(0, (totalAllocated / effectiveBudgetIncome) * 100));
 
   const handleLoginSuccess = (res) => setUser(jwtDecode(res.credential));
   const handleLogout = () => { googleLogout(); setUser(null); setItems([]); };
   const handleRemoveCategory = (idx) => setItems(items.filter((_, i) => i !== idx));
   const handleAmountChange = (index, newValue) => { setItems(prev => prev.map((item, i) => i === index ? { ...item, amount: Number(newValue) } : item)); };
+  const handleCategoryNameChange = (index, newName) => { setItems(prev => prev.map((item, i) => i === index ? { ...item, category: newName } : item)); };
 
   const [isLoadingSheets, setIsLoadingSheets] = useState(false);
 
@@ -119,8 +238,9 @@ export default function BudgetApp() {
           const json = await res.json();
 
           if (json.allSheets && json.allSheets.length > 0) {
-            console.log("✅ Sheets received:", json.allSheets);
+            console.log("Sheets received:", json.allSheets);
             setAvailableSheets(json.allSheets);
+            setShowSheetDropdown(true);
 
 
             if (!sheetName || sheetName === "Sheet Name" || sheetName === "Sheet1") {
@@ -172,80 +292,210 @@ export default function BudgetApp() {
 
   const loadBudget = async () => {
     if (!spreadsheetInput) return setSpreadsheetStatus("⚠️ Enter Link");
-    if (!sheetName) return setSpreadsheetStatus("⚠️ Select a Sheet Name");
-
     const realId = getSpreadsheetId(spreadsheetInput);
     setSpreadsheetStatus("⏳ Syncing...");
 
     try {
       const url = `${API_URL}?spreadsheetId=${realId}&sheetName=${sheetName}`;
       const res = await fetch(url);
-      const text = await res.text();
+      const json = await res.json();
 
-      if (text.trim().startsWith("<")) {
-        throw new Error("Script Permissions Error");
-      }
-
-      const json = JSON.parse(text);
-
-      if (json.allSheets) setAvailableSheets(json.allSheets);
-
-      // update vars
-      if (json.savedData) {
-        setSalary(json.savedData.salary);
-        setBonus(json.savedData.bonus);
-        setStateCode(json.savedData.state);
-      }
-
-      if (json.status === "empty") {
-        setItems([
-          { id: '1', category: 'Rent', amount: 0, color: TAILWIND_COLORS[0] },
-          { id: '2', category: 'Groceries', amount: 0, color: TAILWIND_COLORS[1] }
-        ]);
-        setSpreadsheetStatus("✨ New Budget Ready");
-      } else if (json.status === "error") {
-        throw new Error(json.message);
-      } else {
-        setItems((json.items || []).map((i, idx) => ({
+      if (json.items) {
+        setItems(json.items.map((i, idx) => ({
           ...i,
           id: `item-${idx}`,
-          color: i.color || TAILWIND_COLORS[idx % TAILWIND_COLORS.length]
+          isActive: i.isActive !== false,
+          color: i.color || TAILWIND_COLORS[idx % 10]
         })));
-        setSpreadsheetStatus("✅ Data Synced");
+
       }
 
-    } catch (e) {
-      console.error(e);
-      setSpreadsheetStatus(`❌ Error: ${e.message}`);
-    }
+      // sync from spreadsheet to ui
+      if (json.savedData) {
+        console.log(json.savedData)
+        setSalary(json.savedData.salary || 0);
+        setBonus(json.savedData.bonus || 0);
+        setStateCode(json.savedData.state || 'AL');
+        if (json.savedData.payFrequency) setPayFrequency(json.savedData.payFrequency);
+        if (json.savedData.budgetDuration) setBudgetDuration(json.savedData.budgetDuration);
+        if (json.savedData.targetDate) setTargetDate(json.savedData.targetDate);
+        if (json.savedData.salaryFrequency) setSalaryFrequency(json.savedData.salaryFrequency);
+      }
+      setSpreadsheetStatus("✅ Loaded!");
+    } catch (e) { setSpreadsheetStatus(`❌ Error: ${e.message}`); }
   };
 
   const saveBudget = async () => {
     const realId = getSpreadsheetId(spreadsheetInput);
-
-    // Save budget colors pop up
-    const shouldSyncDesign = window.confirm(
-      "Do you want to apply your category colors to the Google Sheet?"
-    );
-
+    const shouldSyncDesign = window.confirm("Do you want to apply your category colors to the Google Sheet?");
     setSpreadsheetStatus("⏳ Saving...");
+
+    const budgetInfo = BudgetEngine.calculateBudgetIncome(netAnnualIncome, payFrequency, budgetDuration, targetDate);
+
     try {
-      const res = await fetch(API_URL, {
+      await fetch(API_URL, {
         method: "POST",
         body: JSON.stringify({
           spreadsheetId: realId,
           sheetName: sheetName.trim() || "MyBudget",
-          netMonthlyIncome,
-          incomeData: { salary, bonus, state: stateCode },
+          budgetPeriod: budgetInfo.label,
+          netMonthlyIncome: effectiveBudgetIncome,
+          incomeData: {
+            salary, bonus, state: stateCode,
+            payFrequency, budgetDuration, targetDate,
+            salaryFrequency
+          },
           items,
           syncDesign: shouldSyncDesign
         })
       });
-      const json = await res.json();
-      if (json.allSheets) setAvailableSheets(json.allSheets);
       setSpreadsheetStatus("✅ Saved!");
+    } catch (e) { setSpreadsheetStatus(`❌ Error: ${e.message}`); }
+  };
+
+  const handleGenerateBudget = async () => {
+    setShowSetupWizard(false);
+    setSpreadsheetStatus("⏳ Scanning history...");
+
+    try {
+      setBudgetDuration(budgetDuration);
+
+      //based on user preference on budgetting period, calc income for budgeting period
+      const budgetInfo = BudgetEngine.calculateBudgetIncome(
+        netAnnualIncome,
+        payFrequency,
+        budgetDuration,
+        targetDate
+      );
+
+      let finalItems = [];
+
+      //option 1: either sync/copy from a sheet
+      if (copyFromSheet) {
+        let sourceItems = [];
+
+        if (copyFromSheet === sheetName) {
+          sourceItems = items;
+        } else {
+          const realId = getSpreadsheetId(spreadsheetInput);
+          const res = await fetch(`${API_URL}?spreadsheetId=${realId}&sheetName=${copyFromSheet}`);
+          const json = await res.json();
+          sourceItems = json.items || [];
+
+          if (json.savedData) {
+            if (json.savedData.salary) setSalary(json.savedData.salary);
+            if (json.savedData.payFrequency) setPayFrequency(json.savedData.payFrequency);
+            if (json.savedData.salaryFrequency) setSalaryFrequency(json.savedData.salaryFrequency);
+          }
+        }
+
+        finalItems = sourceItems.filter(item => {
+          //query all recurring expenses that fit within the user defined budgeting period 
+          const hasRecurrence = item.recurrenceFreq && item.recurrenceFreq !== "None" && item.recurrenceFreq !== "";
+
+          if (item.isActive === false) return false;
+          if (hasRecurrence) {
+            return BudgetEngine.shouldIncludeExpense({ ...item, isRecurring: true }, budgetInfo.start, budgetInfo.end);
+          }
+          return true;
+        });
+      }
+
+      // option b: create budget from scratch but load recurring expenses
+      else {
+        if (availableSheets.length > 0) {
+          console.log(`🔎 Global Scan: Checking ${availableSheets.length} sheets...`);
+
+          const realId = getSpreadsheetId(spreadsheetInput);
+          const recurringMap = new Map();
+
+          //query sheets to scan for active, recurring expenses
+          const promises = availableSheets.map(name =>
+            fetch(`${API_URL}?spreadsheetId=${realId}&sheetName=${name}`)
+              .then(res => res.json())
+              .catch(
+                e => ({ items: [] }))
+          );
+
+          const results = await Promise.all(promises);
+
+          console.log(results)
+
+          //scan for categories with active recurrance and occur within budgeting period
+          results.forEach(json => {
+            if (json.items) {
+              json.items.forEach(item => {
+
+                const hasRecurrence = item.recurrenceFreq && item.recurrenceFreq !== "None" && item.recurrenceFreq !== "";
+
+                if (
+                  item.isActive !== false &&
+                  hasRecurrence &&
+                  BudgetEngine.shouldIncludeExpense({ ...item, isRecurring: true }, budgetInfo.start, budgetInfo.end)
+                ) {
+                  const key = item.category.trim().toLowerCase();
+
+                  const newItem = {
+                    ...item,
+                    isRecurring: true,
+                    isActive: true,
+                    id: `scanned-${Date.now()}`
+                  };
+
+                  if (!recurringMap.has(key)) {
+                    recurringMap.set(key, newItem);
+                  } else {
+                    const existing = recurringMap.get(key);
+                    const newDate = new Date(item.lastPaidDate || '1970-01-01');
+                    const oldDate = new Date(existing.lastPaidDate || '1970-01-01');
+
+                    if (newDate > oldDate) {
+                      recurringMap.set(key, newItem);
+                    }
+                  }
+                }
+              });
+            }
+          });
+
+          console.log(results);
+          if (recurringMap.size > 0) {
+            console.log(`Found ${recurringMap.size} unique recurring items due`);
+            finalItems = [...finalItems, ...Array.from(recurringMap.values())];
+          }
+        }
+      }
+
+      //update budget
+      setItems(finalItems.map((i, idx) => ({
+        ...i,
+        id: `item-${Date.now()}-${idx}`,
+        isActive: true,
+        isRecurring: !!(i.recurrenceFreq && i.recurrenceFreq !== "None")
+      })));
+
+      // save budget
+      await fetch(API_URL, {
+        method: "POST",
+        body: JSON.stringify({
+          spreadsheetId: getSpreadsheetId(spreadsheetInput),
+          sheetName: sheetName.trim() || "MyBudget",
+          budgetPeriod: budgetInfo.label,
+          netMonthlyIncome: effectiveBudgetIncome,
+          incomeData: {
+            salary, bonus, state: stateCode,
+            payFrequency, budgetDuration, targetDate, salaryFrequency
+          },
+          items: finalItems,
+          syncDesign: true
+        })
+      });
+
+      setSpreadsheetStatus(`✅ Built: ${budgetInfo.label}`);
+
     } catch (e) {
-      setSpreadsheetStatus(`❌ Error: ${e.message}`);
+      console.error(e);
+      setSpreadsheetStatus("❌ Error");
     }
   };
 
@@ -333,10 +583,6 @@ export default function BudgetApp() {
             </button>
           </div>
         </div>
-
-
-
-
 
         {/* Sync Settings Div */}
         <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-xs border border-gray-100 dark:border-gray-700 mb-8 transition-colors duration-300">
@@ -443,11 +689,18 @@ export default function BudgetApp() {
             </div>
 
             <button
-              onClick={loadBudget}
+              onClick={() => {
+                if (availableSheets.includes(sheetName)) {
+                  loadBudget();
+                } else {
+                  setShowSetupWizard(true);
+                }
+              }}
               className="bg-emerald-900 hover:bg-black dark:bg-emerald-700 dark:hover:bg-emerald-600 text-white font-bold py-3 px-8 rounded-xl shadow-lg transition-all active:scale-95 uppercase font-mono mt-2 md:mt-0"
             >
-              Sync Data
+              {availableSheets.includes(sheetName) ? "Load Sheet" : "Create New"}
             </button>
+
           </div>
 
           <div className="w-full text-center mt-4 font-bold text-emerald-600 dark:text-emerald-400 text-sm uppercase h-4">
@@ -469,14 +722,29 @@ export default function BudgetApp() {
               <label className="text-[10px] text-[#86efac] font-bold uppercase tracking-widest mb-2 block font-mono opacity-80">
                 Base Salary
               </label>
-              <div className="relative">
-                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-emerald-500 font-bold">$</span>
-                <input
-                  type="number"
-                  className="pl-8 p-3 rounded-xl bg-[#022c22]/60 border border-[#34d399]/30 w-36 focus:outline-none focus:ring-2 focus:ring-[#4ade80] text-white font-mono text-lg shadow-inner"
-                  value={salary}
-                  onChange={e => setSalary(e.target.value)}
-                />
+              <div className="flex items-center gap-2">
+                {/* Amount Input */}
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-emerald-500 font-bold">$</span>
+                  <input
+                    type="number"
+                    className="pl-6 p-3 rounded-xl bg-[#022c22]/60 border border-[#34d399]/30 w-32 md:w-36 text-white font-mono text-lg focus:outline-none focus:ring-2 focus:ring-[#4ade80] shadow-inner"
+                    value={salary}
+                    onChange={e => setSalary(e.target.value)}
+                  />
+                </div>
+
+                {/* Frequency Dropdown */}
+                <select
+                  value={salaryFrequency}
+                  onChange={(e) => setSalaryFrequency(e.target.value)}
+                  className="p-3 rounded-xl bg-black/10 border border-emerald-500/10 text-emerald-100/70 font-mono text-xs font-bold uppercase focus:outline-none focus:bg-black/20 focus:text-emerald-100 [&>option]:text-black cursor-pointer hover:bg-black/20 transition-all"
+                >
+                  <option value="Annual">/ Year</option>
+                  <option value="Monthly">/ Mo</option>
+                  <option value="Bi-Weekly">/ 2 Wk</option>
+                  <option value="Weekly">/ Wk</option>
+                </select>
               </div>
             </div>
 
@@ -500,7 +768,7 @@ export default function BudgetApp() {
                 State Tax
               </label>
               <select
-                className="p-3 rounded-xl bg-[#022c22]/60 border border-[#34d399]/30 w-28 focus:outline-none focus:ring-2 focus:ring-[#4ade80] text-white font-mono text-lg [&>option]:text-black cursor-pointer"
+                className="p-4 rounded-xl bg-[#022c22]/60 border border-[#34d399]/30 w-28 focus:outline-none focus:ring-2 focus:ring-[#4ade80] text-white font-mono text-lg [&>option]:text-black cursor-pointer"
                 value={stateCode}
                 onChange={e => setStateCode(e.target.value)}
               >
@@ -510,11 +778,11 @@ export default function BudgetApp() {
 
             {/* income display */}
             <div className="ml-auto text-right">
-              <div className="text-[10px] text-[#86efac] font-bold uppercase tracking-widest mb-2 opacity-80 font-mono">
-                Monthly Net Income
+              <div className="text-[10px] text-[#86efac] font-bold uppercase tracking-widest mb-2 opacity-80 font-mono flex items-center justify-end gap-1">
+                {budgetDuration} Net Income
               </div>
               <div className="text-5xl font-extrabold text-transparent bg-clip-text bg-linear-to-b from-white to-[#86efac] drop-shadow-sm tracking-tight font-sans">
-                ${netMonthlyIncome.toLocaleString()}
+                ${effectiveBudgetIncome.toLocaleString()}
               </div>
             </div>
           </div>
@@ -624,12 +892,139 @@ export default function BudgetApp() {
                 {transferStatus}
               </div>
 
+              {/* Config Settings */}
+              <div className="mb-4 flex flex-col gap-2 relative z-30">
+                <button
+                  onClick={() => setShowAdvanced(!showAdvanced)}
+                  className={`self-end text-xs font-mono font-bold uppercase tracking-wider flex items-center gap-2 px-4 py-2 rounded-xl transition-all duration-200 ${showAdvanced ? 'bg-emerald-100 text-emerald-800' : 'text-emerald-600 hover:bg-emerald-50'}`}
+                >
+                  <span>⚙️ Advanced Settings </span>
+                  <span className={`transform transition-transform ${showAdvanced ? 'rotate-180' : ''}`}>▼</span>
+                </button>
+
+                {showAdvanced && (
+                  <div className="bg-white dark:bg-gray-800 p-4 rounded-3xl border-2 border-emerald-100 dark:border-gray-700 shadow-2xl w-full animate-in slide-in-from-top-4 fade-in duration-300">
+
+                    <div className="flex justify-between items-end mb-6 px-2">
+                      <div>
+                        <h3 className="text-lg font-extrabold text-gray-800 dark:text-white font-serif">Recurring Expenses</h3>
+                        <p className="text-xs text-gray-400 mt-1">Set schedules to auto-add expenses to future budgets.</p>
+                      </div>
+                      <div className="text-[10px] font-mono text-emerald-600 bg-emerald-50 px-2 py-1 rounded">
+                        {items.filter(i => i.isRecurring).length} Active Rules
+                      </div>
+                    </div>
+
+                    <div className="max-h-[500px] overflow-y-auto custom-scrollbar space-y-4 pr-2">
+                      {items.map((item, index) => {
+                        // Helper to safely update specific fields
+                        const updateItem = (field, value) => {
+                          setItems(prevItems => {
+                            const newItems = [...prevItems];
+                            // When turning ON recurrence, default to Monthly if undefined
+                            if (field === 'isRecurring' && value === true && !item.recurrenceFreq) {
+                              newItems[index] = { ...newItems[index], [field]: value, recurrenceFreq: 'Monthly' };
+                            } else {
+                              newItems[index] = { ...newItems[index], [field]: value };
+                            }
+                            return newItems;
+                          });
+                        };
+
+                        const isRecurring = item.isRecurring || false;
+
+                        return (
+                          <div
+                            key={item.id}
+                            className={`p-5 rounded-2xl border-2 transition-all duration-300 ${isRecurring
+                                ? 'border-emerald-500 bg-emerald-50/30 dark:bg-emerald-900/10 shadow-md'
+                                : 'border-gray-100 dark:border-gray-700 bg-white dark:bg-gray-800'
+                              }`}
+                          >
+                            {/* category info */}
+                            <div className="flex justify-between items-start mb-2">
+
+                              <div className="flex flex-col gap-1">
+                                <span className={`font-bold text-lg transition-colors ${isRecurring ? 'text-emerald-800 dark:text-emerald-300' : 'text-gray-700 dark:text-gray-200'}`}>
+                                  {item.category}
+                                </span>
+                                <span className="font-mono text-gray-400 text-xs">${item.amount.toLocaleString()}</span>
+                              </div>
+
+                              {/* toggle */}
+                              <label className="flex items-center gap-2 cursor-pointer group">
+                                <span className={`text-[10px] font-bold font-mono uppercase tracking-wider transition-colors ${isRecurring ? 'text-emerald-600' : 'text-gray-400 group-hover:text-gray-500'}`}>
+                                  {isRecurring ? 'Recurring' : 'Non-recurring'}
+                                </span>
+                                <div className="relative">
+                                  <input
+                                    type="checkbox"
+                                    className="sr-only"
+                                    checked={isRecurring}
+                                    onChange={(e) => updateItem('isRecurring', e.target.checked)}
+                                  />
+                                  <div className={`block w-10 h-6 rounded-full transition-colors ${isRecurring ? 'bg-emerald-500' : 'bg-gray-300 dark:bg-gray-600'}`}></div>
+                                  <div className={`absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-transform duration-200 ${isRecurring ? 'translate-x-4' : 'translate-x-0'}`}></div>
+                                </div>
+                              </label>
+
+                            </div>
+
+                            {/* settings */}
+                            {isRecurring && (
+                              <div className="mt-4 pt-4 border-t border-emerald-100 dark:border-emerald-900/30 space-y-4 animate-in fade-in slide-in-from-top-1">
+
+                                <div>
+                                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest font-mono mb-2 block">Frequency</label>
+                                  <div className="flex flex-wrap gap-2">
+                                    {['Weekly', 'Bi-Weekly', 'Monthly', 'Semi-Annual', 'Annual'].map((opt) => (
+                                      <button
+                                        key={opt}
+                                        onClick={() => updateItem('recurrenceFreq', opt)}
+                                        className={`px-3 py-2 rounded-lg text-xs font-bold border transition-all active:scale-95 ${item.recurrenceFreq === opt
+                                            ? 'bg-emerald-600 text-white border-emerald-600 shadow-md'
+                                            : 'bg-white dark:bg-gray-700 text-gray-500 border-gray-200 dark:border-gray-600 hover:border-emerald-300'
+                                          }`}
+                                      >
+                                        {opt}
+                                      </button>
+                                    ))}
+                                  </div>
+                                </div>
+
+                                <div>
+                                  <label className="text-[10px] font-mono font-bold text-emerald-600 dark:text-emerald-400 uppercase mb-2 block">
+                                    Last Paid Date
+                                  </label>
+                                  <div className="flex items-center gap-3">
+                                    <input
+                                      type="date"
+                                      value={item.lastPaidDate || ''}
+                                      onChange={(e) => updateItem('lastPaidDate', e.target.value)}
+                                      className="w-full p-3 bg-white dark:bg-gray-900 border border-emerald-200 dark:border-emerald-800 rounded-xl text-sm font-bold text-gray-700 dark:text-white focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                                    />
+                                    <div className="text-[10px] text-gray-400 w-1/2 leading-tight">
+                                      Auto-adds to future budgets based on this date.
+                                    </div>
+                                  </div>
+                                </div>
+
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+
               {/* Categories List */}
               <div className="bg-white dark:bg-gray-800 rounded-3xl border border-gray-100 dark:border-gray-700 shadow-xs overflow-hidden flex flex-col relative h-full transition-colors duration-300">
 
                 <div className="flex-1 grid grid-cols-1 grid-rows-1 overflow-y-auto p-4 smooth-scroll relative min-h-0">
 
-                  {/* LAYER 1: category div visual */}
+                  {/* layer 1: category div visual */}
                   <div className="col-start-1 row-start-1 z-0">
                     {items.map((item, index) => {
                       const itemColor = item.color || TAILWIND_COLORS[index % TAILWIND_COLORS.length];
@@ -651,11 +1046,13 @@ export default function BudgetApp() {
                                 <input type="color" value={itemColor} onChange={(e) => { const newColor = e.target.value; setItems(prev => prev.map((itm, idx) => idx === index ? { ...itm, color: newColor } : itm)); }} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer p-0 border-0" />
                               </div>
 
-                              <span
-                                className="font-bold text-gray-700 dark:text-gray-200 text-lg leading-tight flex-1 uppercase font-mono min-w-0 pr-2 overflow-x-auto whitespace-nowrap [&::-webkit-scrollbar]:hidden"
-                              >
-                                {item.category}
-                              </span>
+                              <input
+                                type="text"
+                                value={item.category}
+                                onChange={(e) => handleCategoryNameChange(index, e.target.value)}
+                                className="font-bold text-gray-700 dark:text-gray-200 text-lg leading-tight flex-1 uppercase font-mono min-w-0 pr-2 bg-transparent outline-none border-b-2 border-transparent focus:border-emerald-500 transition-colors placeholder-gray-400/50 truncate"
+                                placeholder="CATEGORY NAME"
+                              />
 
                               {/* amount */}
                               <div className="flex items-center gap-0 md:gap-2 flex-shrink-0 ml-auto">
@@ -673,7 +1070,7 @@ export default function BudgetApp() {
                     })}
                   </div>
 
-                  {/* LAYER 2: drag and drop money buttons */}
+                  {/* layer 2: drag and drop money buttons */}
                   <div className="col-start-1 row-start-1 z-10 pointer-events-none">
                     <Droppable droppableId="budget-list">
                       {(provided) => (
@@ -682,10 +1079,8 @@ export default function BudgetApp() {
                             <Draggable key={item.id} draggableId={item.id} index={index}>
                               {(provided, snapshot) => (
                                 <div ref={provided.innerRef} {...provided.draggableProps} className="mb-3 relative min-h-[74px] flex items-center pl-3">
-                                  {/* The Drag Handle (Money Bag Icon) */}
                                   <div {...provided.dragHandleProps} className="w-10 h-10 flex-shrink-0 flex items-center justify-center border-2 border-yellow-600/20 shadow-sm rounded-full cursor-grab active:cursor-grabbing hover:scale-110 transition-transform text-xl z-20 bg-linear-to-br from-yellow-100 to-yellow-300 text-yellow-800 pointer-events-auto">💸</div>
 
-                                  {/* Dragging Badge */}
                                   {snapshot.isDragging && <div className="absolute top-1/2 left-14 -translate-y-1/2 bg-gray-900 text-white font-bold px-4 py-2 rounded-full shadow-xl whitespace-nowrap z-50">Move ${transferAmount}</div>}
                                 </div>
                               )}
@@ -698,7 +1093,7 @@ export default function BudgetApp() {
                   </div>
                 </div>
 
-                {/* BOTTOM BAR: NEW CATEGORY INPUT */}
+                {/* add new category */}
                 <div className="p-4 border-t border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/30 flex gap-3 z-30 relative mt-auto transition-colors duration-300">
                   <input className="flex-1 p-3 rounded-xl border border-gray-200 dark:border-gray-600 shadow-xs focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-white dark:bg-gray-800 font-mono dark:text-white" placeholder="New Category..." value={newCategory} onChange={e => setNewCategory(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') addNewCategory(); }} />
                   <button onClick={addNewCategory} className="bg-emerald-600 hover:bg-emerald-700 text-white px-5 rounded-xl font-bold transition-all active:scale-95 text-lg">+</button>
@@ -738,7 +1133,6 @@ export default function BudgetApp() {
                         contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)' }}
                       />
 
-                      {/* Use the custom renderer here */}
                       <Legend
                         content={renderLegend}
                         verticalAlign="bottom"
@@ -816,6 +1210,60 @@ export default function BudgetApp() {
         </div>
 
       </div>
+
+      {/* --- WIZARD MODAL --- */}
+      {showSetupWizard && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-[90vw] md:max-w-lg overflow-hidden animate-in zoom-in-95 duration-200">
+            <div className="bg-emerald-600 p-6 text-white">
+              <h2 className="text-2xl font-bold font-serif">Create New Budget</h2>
+              <p className="text-emerald-100 text-sm">Define your timeline and rules.</p>
+            </div>
+
+            <div className="p-6 space-y-5">
+              <div>
+                <label className="block text-xs font-bold uppercase font-mono text-gray-500 mb-1">1. Start Date</label>
+                <input type="date" className="w-full p-3 border rounded-xl font-bold dark:bg-gray-700 dark:border-gray-600 dark:text-white" value={targetDate} onChange={(e) => setTargetDate(e.target.value)} />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold uppercase font-mono text-gray-500 mb-1">2. Budget Duration</label>
+                <div className="grid grid-cols-2 gap-2 font-mono">
+                  {['Weekly', 'Bi-Weekly', 'Monthly', 'Annual'].map(d => (
+                    <button key={d} onClick={() => setBudgetDuration(d)} className={`py-2 px-1 rounded-lg text-xs font-bold border transition-colors ${budgetDuration === d ? 'bg-emerald-100 border-emerald-500 text-emerald-800' : 'border-gray-200 dark:border-gray-600 text-gray-500'}`}>{d}</button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-mono font-bold uppercase text-gray-500 mb-1">3. Pay Frequency</label>
+                <div className="flex gap-2 font-mono">
+                  {['Weekly', 'Bi-Weekly', 'Monthly'].map(f => (
+                    <button key={f} onClick={() => setPayFrequency(f)} className={`flex-1 py-2 rounded-lg text-xs font-bold border ${payFrequency === f ? 'bg-emerald-100 border-emerald-500 text-emerald-800' : 'border-gray-200 dark:border-gray-600 text-gray-500'}`}>{f}</button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-mono font-bold uppercase text-gray-500 mb-1">4. Copy Previous?</label>
+                <select className="w-full p-3 font-serif border rounded-xl dark:bg-gray-700 dark:border-gray-600 dark:text-white" onChange={(e) => setCopyFromSheet(e.target.value)}>
+                  <option value="">(Start from Scratch)</option>
+                  {availableSheets.map(s => <option key={s} value={s}>{s}</option>)}
+                </select>
+              </div>
+
+            </div>
+
+            <div className="p-4 font-mono bg-gray-50 dark:bg-gray-900 flex justify-end gap-3 border-t border-gray-100 dark:border-gray-700">
+              <button onClick={() => setShowSetupWizard(false)} className="px-4 py-2 text-gray-500 font-bold hover:text-red-500">CANCEL</button>
+              <button onClick={handleGenerateBudget} className="px-6 py-2 bg-emerald-600 text-white rounded-xl font-bold shadow-lg hover:bg-emerald-700 transition-transform active:scale-95">
+                CREATE
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }

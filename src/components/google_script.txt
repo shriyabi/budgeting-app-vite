@@ -10,69 +10,53 @@ function doGet(e) {
 
     const ss = SpreadsheetApp.openById(spreadsheetId);
     
-    // get the list of sheets given link
-    // We grab this immediately so we can return it even if the specific sheet is missing.
-    const allSheets = ss.getSheets().map(function(s) { return s.getName(); });
+    if (isMeta) return jsonResponse({ status: "success", allSheets: ss.getSheets().map(function(s) { return s.getName(); }) });
 
-    // FAST PATH: If app just wants list of sheets
-    if (isMeta) {
-      return jsonResponse({ status: "success", allSheets: allSheets });
-    }
-
-    // open selected sheet
     const targetName = sheetName || "Sheet1";
     let sheet = ss.getSheetByName(targetName);
 
-    // IF SHEET MISSING: Return "Empty" status but include the list!
     if (!sheet) {
-      return jsonResponse({ 
-        status: "empty", 
-        message: "New Budget",
-        allSheets: allSheets 
-      });
+      return jsonResponse({ status: "empty", message: "New Budget" });
     }
 
     const lastRow = sheet.getLastRow();
     
-    // query income data
-    // Format: B2=Salary, B3=Bonus, B4=State
-    let savedData = { salary: 0, bonus: 0, state: 'VA' };
-    
-    try {
-      // Get B2:B4
-      const incomeValues = sheet.getRange("B2:B4").getValues();
-      if (incomeValues[0][0] !== "") savedData.salary = Number(incomeValues[0][0]); 
-      if (incomeValues[1][0] !== "") savedData.bonus = Number(incomeValues[1][0]);  
-      if (incomeValues[2][0] !== "") savedData.state = incomeValues[2][0];          
-    } catch(err) {
-      // Ignore if sheet is blank
-    }
+    // read config first 5 rows
+    let savedData = {};
+    const configCell = sheet.getRange("C1").getValue();
+    if (configCell && typeof configCell === 'string' && configCell.startsWith("{")) {
+      try { savedData = JSON.parse(configCell); } catch (err) {}
+    } 
 
-    // query categories
     let items = [];
+    
+    // read cat data
     if (lastRow >= DATA_START_ROW) {
       const numRows = lastRow - DATA_START_ROW + 1;
-      // Get Data (Cols A & B) and Colors (Col A)
-      const dataRange = sheet.getRange(DATA_START_ROW, 1, numRows, 2).getValues(); 
+      
+      const dataRange = sheet.getRange(DATA_START_ROW, 1, numRows, 5).getValues(); 
       const colorRange = sheet.getRange(DATA_START_ROW, 1, numRows, 1).getBackgrounds(); 
 
       for (let i = 0; i < dataRange.length; i++) {
-        if (dataRange[i][0]) { // If category name exists
+        const row = dataRange[i];
+        
+        if (row[0] && row[0] !== "" && row[0] !== "Category") { 
+          
+          const isRowActive = row[4] === false ? false : true;
+
           items.push({
-            category: dataRange[i][0],
-            amount: Number(dataRange[i][1]) || 0,
+            category: row[0],
+            amount: Number(row[1]) || 0,
+            recurrenceFreq: row[2] || "",
+            lastPaidDate: formatDate(row[3]),
+            isActive: isRowActive,
             color: colorRange[i][0] !== '#ffffff' ? colorRange[i][0] : null 
           });
         }
       }
     }
     
-    return jsonResponse({ 
-      status: "success", 
-      savedData, 
-      items,
-      allSheets // Always return this!
-    });
+    return jsonResponse({ status: "success", savedData, items });
 
   } catch (err) {
     return jsonResponse({ status: "error", message: err.toString() });
@@ -85,59 +69,71 @@ function doPost(e) {
     const ss = SpreadsheetApp.openById(data.spreadsheetId);
     let sheet = ss.getSheetByName(data.sheetName);
     
-    // Create sheet if missing
-    if (!sheet) {
-      sheet = ss.insertSheet(data.sheetName);
-    }
+    if (!sheet) sheet = ss.insertSheet(data.sheetName);
 
     const lastRow = sheet.getLastRow();
 
-    // save income data
-    // Matches your screenshot: A=Labels, B=Values
+    // write config data
     if (data.incomeData) {
-       const incomeBlock = [
-         ["Net Monthly Income", data.netMonthlyIncome || 0], // Row 1
-         ["Annual Salary", data.incomeData.salary],          // Row 2
-         ["Annual Bonus", data.incomeData.bonus],            // Row 3
-         ["State", data.incomeData.state]                    // Row 4
+       const totalComp = (Number(data.incomeData.salary) || 0) + (Number(data.incomeData.bonus) || 0);
+       const headerBlock = [
+         ["Budget Period", data.budgetPeriod || "Monthly"], 
+         ["Pay Frequency", data.incomeData.payFrequency],   
+         ["Net Income", data.netMonthlyIncome || 0],        
+         ["Annual Total", totalComp]                      
        ];
        
-       sheet.getRange("A1:B4").setValues(incomeBlock);
-       sheet.getRange("A1:A4").setFontWeight("bold"); // Bold labels
-       sheet.getRange("B1").setFontWeight("bold");    // Bold Net Income
+       sheet.getRange("A1:B4").setValues(headerBlock);
+       sheet.getRange("A1:A4").setFontWeight("bold").setBackground("#f3f4f6");
+       sheet.getRange("B3").setFontWeight("bold").setFontColor("#047857").setNumberFormat("$#,##0"); 
+       sheet.getRange("B4").setNumberFormat("$#,##0"); 
     }
 
-    //clear old data
+    if (data.incomeData) {
+      sheet.getRange("C1").setValue(JSON.stringify(data.incomeData)).setFontColor("#ffffff");
+    }
+
+    // clear old data
     if (lastRow >= DATA_START_ROW) {
-      const numRows = lastRow - DATA_START_ROW + 1;
-      sheet.getRange(DATA_START_ROW, 1, numRows, 2).clearContent();     
-      sheet.getRange(DATA_START_ROW, 1, numRows, 1).setBackground(null); 
+      sheet.getRange(DATA_START_ROW, 1, lastRow - DATA_START_ROW + 1, 5).clearContent().setBackground(null).clearDataValidations();     
     }
 
-    // write new ndata
+    // write new data
     if (data.items && data.items.length > 0) {
-      const rows = data.items.map(item => [item.category, item.amount]);
+      const rows = data.items.map(item => [
+        item.category, 
+        item.amount, 
+        item.recurrenceFreq || "", 
+        item.lastPaidDate || "",
+        item.isActive === false ? false : true // Explicitly write FALSE to uncheck the box
+      ]);
       
-      // Write text
-      sheet.getRange(DATA_START_ROW, 1, rows.length, 2).setValues(rows);
+      const numRows = rows.length;
+      
+   
+      sheet.getRange(DATA_START_ROW, 1, numRows, 5).setValues(rows);
+      sheet.getRange(DATA_START_ROW, 2, numRows, 1).setNumberFormat("$#,##0");
 
-      // Write colors (if enabled)
+      // write recurring
+      const checkboxRule = SpreadsheetApp.newDataValidation().requireCheckbox().build();
+      sheet.getRange(DATA_START_ROW, 5, numRows, 1).setDataValidation(checkboxRule);
+
+      // write colors
       if (data.syncDesign === true) {
-        const colorMatrix = data.items.map(item => {
-          let c = item.color;
-          // Validate hex code
-          if (!c || typeof c !== 'string' || !c.startsWith('#')) return ["#ffffff"];
-          // Fix 3-digit hex (#FFF -> #FFFFFF)
-          if (c.length === 4) c = '#' + c[1] + c[1] + c[2] + c[2] + c[3] + c[3];
-          return [c];
-        });
-        sheet.getRange(DATA_START_ROW, 1, rows.length, 1).setBackgrounds(colorMatrix);
+        const colorMatrix = data.items.map(item => [item.color && item.color.startsWith('#') ? item.color : "#ffffff"]);
+        sheet.getRange(DATA_START_ROW, 1, numRows, 1).setBackgrounds(colorMatrix);
       }
     }
 
-    sheet.getRange("A5:B5").setValues([["Category", "Amount"]]).setFontWeight("bold").setBackground("#f3f4f6");
+    sheet.getRange("A5:E5")
+      .setValues([["Category", "Budgeted", "Frequency", "Last Paid", "Active?"]])
+      .setFontWeight("bold")
+      .setBackground("#e5e7eb")
+      .setBorder(true, false, true, false, false, false);
 
-    return jsonResponse({ status: "success", allSheets: ss.getSheets().map(s => s.getName()) });
+    sheet.autoResizeColumns(1, 5);
+
+    return jsonResponse({ status: "success", allSheets: ss.getSheets().map(function(s) { return s.getName(); }) });
 
   } catch (err) {
     return jsonResponse({ status: "error", message: err.toString() });
@@ -146,4 +142,12 @@ function doPost(e) {
 
 function jsonResponse(data) {
   return ContentService.createTextOutput(JSON.stringify(data)).setMimeType(ContentService.MimeType.JSON);
+}
+
+function formatDate(dateObj) {
+  if (!dateObj) return "";
+  try {
+    const d = new Date(dateObj);
+    return Utilities.formatDate(d, Session.getScriptTimeZone(), "yyyy-MM-dd");
+  } catch (e) { return ""; }
 }

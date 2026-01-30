@@ -147,7 +147,7 @@ export default function SpendingTracker({ isOpen, onClose, categories, onImport 
             <div className="space-y-4">
               <p className="text-xs text-gray-500">Paste transactions directly from your bank website.</p>
               <textarea className="w-full h-48 p-4 bg-gray-50 dark:bg-gray-900 border-2 border-dashed border-gray-300 dark:border-gray-700 rounded-xl font-mono text-xs focus:ring-2 focus:ring-emerald-500 outline-none" 
-                placeholder={`12/28 ROSS STORE #374  26.49\n12/30 PHANTOM 1 NY     7.90`}
+                placeholder={`STORE [price]`}
                 value={rawText} onChange={(e) => setRawText(e.target.value)} />
               <button onClick={handleParse} disabled={!rawText} className="w-full py-4 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl shadow-lg">1. Parse Data</button>
             </div>

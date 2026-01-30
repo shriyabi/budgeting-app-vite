@@ -274,7 +274,7 @@ export default function HelpWidget({ isOpen, onClose }) {
                         <div className="space-y-6">
                             <div className="text-center mb-6">
                                 <h3 className="text-xl font-bold font-serif mb-2">Setting up Recurring Expenses</h3>
-                                <p className="text-sm text-gray-500">How to tell the Smart Budget Engine what to track.</p>
+                                <p className="text-sm text-gray-500">Configure what expenses are tracked.</p>
                             </div>
 
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -298,7 +298,7 @@ export default function HelpWidget({ isOpen, onClose }) {
                                     </div>
                                     <h4 className="font-bold text-sm text-emerald-700 dark:text-emerald-400 mb-1">🟢 Recurring Bill</h4>
                                     <p className="text-xs text-emerald-800/70 dark:text-emerald-200/70">
-                                        Toggle <b>ON</b> for recurring expenses. Set the <b>Frequency</b> and <b>Last Paid Date</b>. The Smart Engine will scan all history and auto-add this to future budgets if it's due!
+                                        Toggle <b>ON</b> for recurring expenses. Set the <b>Frequency</b> and <b>Last Paid Date</b>. The application will scan all history and auto-add this to future budgets if it's due!
                                     </p>
                                 </div>
                             </div>

@@ -1,12 +1,14 @@
 import React, { useState, useMemo, useEffect } from 'react'; //useEffect
 import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
-import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer, Sector } from 'recharts';
 import { GoogleLogin, googleLogout } from '@react-oauth/google';
 import { jwtDecode } from 'jwt-decode';
 import './index.css'
 import ScratchpadWidget from './components/scratchpad';
 import Calculator from './components/calculator';
 import HelpWidget from './components/help';
+import SpendingTracker from './components/spending_tracker';
+
 
 const API_URL = import.meta.env.VITE_APP_SCRIPT_URL;
 
@@ -45,28 +47,23 @@ const STATE_TAX_RATES = {
 
 const getSpreadsheetId = (input) => {
   if (!input) return "";
-  // 1. Try to find the ID pattern in a URL
   const match = input.match(/\/d\/([a-zA-Z0-9-_]+)/);
   if (match && match[1]) return match[1];
 
-  // 2. If it's a raw ID (no slashes, long string), return it
   if (!input.includes('/') && input.length > 20) return input;
 
-  // 3. Fallback: Return null so we don't send garbage to Google
   return null;
 };
 
-// --- BUDGET ENGINE ---
+//Runs the recurring expense
 const BudgetEngine = {
-  // Helper: Parse YYYY-MM-DD to Local Midnight (Fixes Timezone Bugs)
   parseLocalDate: (dateStr) => {
     if (!dateStr) return new Date();
-    const parts = dateStr.split('-'); // 2026-02-01
-    // Note: Month is 0-indexed in JS (0=Jan, 1=Feb)
+    const parts = dateStr.split('-'); 
     return new Date(parts[0], parts[1] - 1, parts[2]);
   },
 
-  // 1. Calculate Income & Window
+  //calc income
   calculateBudgetIncome: (netAnnual, payFrequency, budgetDuration, startDateStr) => {
     const start = BudgetEngine.parseLocalDate(startDateStr);
 
@@ -175,9 +172,10 @@ export default function BudgetApp() {
   const [copyFromSheet, setCopyFromSheet] = useState('');
   //const [incomeDisplayMode, setIncomeDisplayMode] = useState('Monthly'); // Visual Toggle
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [showImport, setShowImport] = useState(false);
+  const [chartMode, setChartMode] = useState('budget'); // budget or spent 
 
-  // --- CALCULATIONS ---
-
+  // Budget calcutations 
   // 1. calc net income (defualt: annual)
   const netAnnualIncome = useMemo(() => {
     let grossSalary = Number(salary);
@@ -248,7 +246,7 @@ export default function BudgetApp() {
             }
           }
         } catch (e) {
-          console.error("❌ Auto-fetch failed:", e);
+          console.error("Auto-fetch failed:", e);
         } finally {
           setIsLoadingSheets(false);
         }
@@ -322,7 +320,7 @@ export default function BudgetApp() {
         if (json.savedData.salaryFrequency) setSalaryFrequency(json.savedData.salaryFrequency);
       }
       setSpreadsheetStatus("✅ Loaded!");
-    } catch (e) { setSpreadsheetStatus(`❌ Error: ${e.message}`); }
+    } catch (e) { setSpreadsheetStatus(`Error: ${e.message}`); }
   };
 
   const saveBudget = async () => {
@@ -345,13 +343,24 @@ export default function BudgetApp() {
             payFrequency, budgetDuration, targetDate,
             salaryFrequency
           },
-          items,
+          
+          //intgerate spending gtracking
+          items: items.map(item => ({
+             category: item.category,
+             amount: item.amount,
+             recurrenceFreq: item.recurrenceFreq,
+             lastPaidDate: item.lastPaidDate,
+             isActive: item.isActive,
+             spent: item.spent || 0, 
+             color: item.color
+          })),
+
           syncDesign: shouldSyncDesign
         })
       });
       setSpreadsheetStatus("✅ Saved!");
-    } catch (e) { setSpreadsheetStatus(`❌ Error: ${e.message}`); }
-  };
+    } catch (e) { setSpreadsheetStatus(`Error: ${e.message}`); }
+};
 
   const handleGenerateBudget = async () => {
     setShowSetupWizard(false);
@@ -545,6 +554,75 @@ export default function BudgetApp() {
       </div>
     );
   };
+
+  const handleSmartImport = (importedData) => {
+  const newItems = items.map(item => {
+    const matchKey = Object.keys(importedData).find(key => key.toLowerCase() === item.category.toLowerCase());
+    if (matchKey) {
+      // Add imported amount to existing spent amount
+      const currentSpent = item.spent || 0;
+      return { ...item, spent: currentSpent + importedData[matchKey] };
+    }
+    return item;
+  });
+
+  setItems(newItems);
+  setChartMode('spent'); // Switch view
+};
+
+// process slice overlay for budget pie chart (shows fraction spent of each budget in the chart)
+const renderProgressSlice = (props) => {
+  const { 
+    cx, cy, innerRadius, outerRadius, startAngle, endAngle, fill, payload 
+  } = props;
+  
+  const budget = payload.amount || 0;
+  const spent = payload.spent || 0;
+  const pct = budget > 0 ? Math.min(spent / budget, 1.2) : 0; // Cap visual at 120%
+
+  //portion filled based on percentage
+  const radiusWidth = outerRadius - innerRadius;
+  const spentOuterRadius = innerRadius + (radiusWidth * pct);
+
+  return (
+    <g>
+      {/* layer 1: og chart w muted background */}
+      <Sector
+        cx={cx} cy={cy}
+        innerRadius={innerRadius}
+        outerRadius={outerRadius}
+        startAngle={startAngle}
+        endAngle={endAngle}
+        fill={fill}
+        opacity={0.15} 
+        cornerRadius={4}
+      />
+      
+      {/* layer 2: % spent overlay */}
+      <Sector
+        cx={cx} cy={cy}
+        innerRadius={innerRadius}
+        outerRadius={spentOuterRadius}
+        startAngle={startAngle}
+        endAngle={endAngle}
+        fill={spent > budget ? "#ef4444" : fill} // alert if over budget
+        cornerRadius={4}
+      />
+      
+      <Sector
+        cx={cx} cy={cy}
+        innerRadius={innerRadius}
+        outerRadius={outerRadius}
+        startAngle={startAngle}
+        endAngle={endAngle}
+        fill="none"
+        stroke={fill}
+        strokeOpacity={0.3}
+        strokeWidth={1}
+      />
+    </g>
+  );
+};
 
   return (
     <div className='w-full overflow-x-hidden bg-linear-to-br from-[#fdfbf7] to-[#ecfdf5] dark:from-gray-950 dark:to-[#02261d] h-auto'>
@@ -917,11 +995,9 @@ export default function BudgetApp() {
 
                     <div className="max-h-[500px] overflow-y-auto custom-scrollbar space-y-4 pr-2">
                       {items.map((item, index) => {
-                        // Helper to safely update specific fields
                         const updateItem = (field, value) => {
                           setItems(prevItems => {
                             const newItems = [...prevItems];
-                            // When turning ON recurrence, default to Monthly if undefined
                             if (field === 'isRecurring' && value === true && !item.recurrenceFreq) {
                               newItems[index] = { ...newItems[index], [field]: value, recurrenceFreq: 'Monthly' };
                             } else {
@@ -1102,90 +1178,247 @@ export default function BudgetApp() {
             </div>
 
             {/* Chart Div (Right) */}
-            <div className="flex-1 w-full lg:w-auto h-full flex flex-col">
-              <div className="bg-white dark:bg-gray-800 p-8 rounded-3xl shadow-lg border border-gray-100 dark:border-gray-700 flex flex-col h-full justify-between transition-colors duration-300">
-                <h3 className="text-gray-400 font-bold uppercase tracking-widest text-xs mb-8 text-center font-mono">Funds Allocation</h3>
+<div className="flex-1 w-full lg:w-auto h-full flex flex-col">
+  <div className="bg-white dark:bg-gray-800 p-8 rounded-3xl shadow-lg border border-gray-100 dark:border-gray-700 flex flex-col h-full justify-between transition-colors duration-300 relative">
+    
+    <div className="flex justify-between items-center mb-6">
+      <h3 className="text-gray-400 font-bold uppercase tracking-widest text-xs font-mono">
+        {chartMode === 'budget' ? 'Funds Allocation' : 'Budget Progress'}
+      </h3>
+      
+      {/* budget or spending view */}
+      <div className="bg-gray-100 dark:bg-gray-900 p-1 rounded-xl flex shrink-0">
+        <button
+          onClick={() => setChartMode('budget')}
+          className={`px-3 py-1 text-xs font-bold rounded-lg transition-all ${
+            chartMode === 'budget' 
+              ? 'bg-white dark:bg-gray-700 text-emerald-600 shadow-sm' 
+              : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-300'
+          }`}
+        >
+          Plan
+        </button>
+        <button
+          onClick={() => setChartMode('spent')}
+          className={`px-3 py-1 text-xs font-bold rounded-lg transition-all ${
+            chartMode === 'spent' 
+              ? 'bg-white dark:bg-gray-700 text-rose-500 shadow-sm' 
+              : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-300'
+          }`}
+        >
+          Actual
+        </button>
+      </div>
+    </div>
 
-                {/* Chart */}
-                <div className="w-full font-mono uppercase mb-10 h-[400px] lg:h-auto lg:flex-1 min-h-[300px]">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie
-                        data={items}
-                        dataKey="amount"
-                        nameKey="category"
-                        innerRadius="50%"
-                        outerRadius="75%"
-                        paddingAngle={5}
-                        cornerRadius={6}
-                      >
-                        {items.map((entry, index) => (
-                          <Cell
-                            key={entry.id || `cell-${index}`}
-                            fill={entry.color || TAILWIND_COLORS[index % TAILWIND_COLORS.length]}
-                            stroke="none"
-                          />
-                        ))}
-                      </Pie>
 
-                      <Tooltip
-                        formatter={(val) => `$${val.toLocaleString()}`}
-                        contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)' }}
-                      />
+    {/* Chart Div */}
+    
+    {chartMode === 'budget' ? (
+      
+      // option 1: standard budget view
+      <div className="w-full font-mono uppercase mb-4 h-[400px] lg:h-auto lg:flex-1 min-h-[300px] relative">
+        <ResponsiveContainer width="100%" height="100%">
+          <PieChart>
+            <Pie
+              data={items.filter(i => i.isActive !== false)}
+              dataKey="amount"
+              nameKey="category"
+              innerRadius="60%"
+              outerRadius="80%"
+              paddingAngle={5}
+              cornerRadius={6}
+            >
+              {items.map((entry, index) => (
+                <Cell
+                  key={entry.id || `cell-${index}`}
+                  fill={entry.color || TAILWIND_COLORS[index % TAILWIND_COLORS.length]}
+                  stroke="none"
+                />
+              ))}
+            </Pie>
+            <Tooltip
+              formatter={(val) => `$${val.toLocaleString()}`}
+              contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)' }}
+            />
+            <Legend
+              content={renderLegend}
+              verticalAlign="bottom"
+              wrapperStyle={{ paddingTop: '20px' }}
+            />
+          </PieChart>
+        </ResponsiveContainer>
+        
+        {/* Center Text: Total Planned */}
+        <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none pb-12">
+            <span className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mb-1">Total Plan</span>
+            <span className="text-2xl font-black font-mono text-emerald-600 dark:text-emerald-400">
+            ${items.reduce((sum, item) => sum + (item.amount || 0), 0).toLocaleString()}
+            </span>
+        </div>
+      </div>
 
-                      <Legend
-                        content={renderLegend}
-                        verticalAlign="bottom"
-                      />
-                    </PieChart>
-                  </ResponsiveContainer>
-                </div>
-                <button
-                  onClick={saveBudget}
-                  className="w-full font-mono uppercase py-4 bg-gray-900 hover:bg-black dark:bg-emerald-800 dark:hover:bg-emerald-700 text-white text-lg font-bold rounded-2xl shadow-xl mt-6 transition-all active:scale-[0.98]"
-                >
-                  Save Changes
-                </button>
-              </div>
-            </div>
+    ) : (
+
+      // option 2: percentage spent overlay
+      <div className="w-full font-mono uppercase mb-4 h-[400px] lg:h-auto lg:flex-1 min-h-[300px] relative">
+        <ResponsiveContainer width="100%" height="100%">
+          <PieChart>
+            <Pie
+              data={items.filter(i => i.isActive !== false)}
+              dataKey="amount"
+              nameKey="category"
+              innerRadius="60%"
+              outerRadius="80%"
+              paddingAngle={5}
+              shape={renderProgressSlice}
+              activeShape={renderProgressSlice} 
+            >
+              {items.map((entry, index) => (
+                <Cell
+                  key={entry.id || `cell-${index}`}
+                  fill={entry.color || TAILWIND_COLORS[index % TAILWIND_COLORS.length]}
+                  stroke="none"
+                />
+              ))}
+            </Pie>
+
+            <Tooltip
+              content={({ active, payload }) => {
+                if (active && payload && payload.length) {
+                  const data = payload[0].payload;
+                  const isOver = (data.spent || 0) > data.amount;
+                  return (
+                    <div className="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-xl border border-gray-100 dark:border-gray-700 backdrop-blur-sm bg-opacity-95">
+                      <p className="font-bold text-gray-800 dark:text-white mb-2 text-sm">{data.category}</p>
+                      <div className="space-y-1">
+                        <div className="flex justify-between gap-6 text-xs text-gray-500 font-mono">
+                          <span>Budget:</span>
+                          <span>${data.amount.toLocaleString()}</span>
+                        </div>
+                        <div className="flex justify-between gap-6 text-xs font-mono font-bold">
+                          <span className={isOver ? "text-rose-500" : "text-emerald-600"}>Spent:</span>
+                          <span className={isOver ? "text-rose-500" : "text-emerald-600"}>${(data.spent || 0).toLocaleString()}</span>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                }
+                return null;
+              }}
+            />
+
+            <Legend
+              content={renderLegend}
+              verticalAlign="bottom"
+              wrapperStyle={{ paddingTop: '20px' }}
+            />
+          </PieChart>
+        </ResponsiveContainer>
+
+        <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none pb-12">
+          <span className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mb-1">
+            Total Spent
+          </span>
+          <span className="text-2xl font-black font-mono text-rose-500">
+            ${items
+              .filter(i => i.isActive !== false)
+              .reduce((sum, item) => sum + (item.spent || 0), 0)
+              .toLocaleString()}
+          </span>
+          <span className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-1">
+            of ${items.reduce((sum, item) => sum + (item.amount || 0), 0).toLocaleString()}
+          </span>
+        </div>
+      </div>
+    )}
+
+    {/* Save */}
+    <button
+      onClick={saveBudget}
+      className="w-full font-mono uppercase py-4 bg-gray-900 hover:bg-black dark:bg-emerald-600 dark:hover:bg-emerald-700 text-white text-lg font-bold rounded-2xl shadow-xl mt-2 transition-all active:scale-[0.98] flex items-center justify-center gap-2"
+    >
+      <span>Save Changes</span>
+    </button>
+  </div>
+</div>
 
           </div>
         </DragDropContext>
 
-        {/* Widget Buttons*/}
-        <div className="fixed z-50 transition-all duration-300
-  bottom-6 left-1/2 -translate-x-1/2 w-auto px-6 py-3 rounded-full bg-white/50 dark:bg-gray-900/50 backdrop-blur-md shadow-xl flex items-center justify-center gap-4 md:bottom-8 md:right-8 md:left-auto md:translate-x-0 md:w-auto md:bg-transparent md:dark:bg-transparent md:backdrop-blur-none md:border-none md:shadow-none md:p-0 md:gap-4 md:justify-end md:rounded-none
-">
-          {/* 1. Scratchpad */}
-          <button
-            onClick={() => setIsScratchOpen(!isScratchOpen)}
-            className="
-      w-14 h-14 md:w-16 md:h-16 bg-linear-to-br from-gray-300 to-gray-700 text-white rounded-full shadow-lg flex items-center justify-center text-2xl md:text-3xl transition-transform hover:scale-110 active:scale-95 active:shadow-inner"
-            title="Scratchpad"
-          >
-            📝
-          </button>
+        {/* Widget Buttons */}
+<div className="fixed z-50 transition-all duration-300
+    bottom-6 left-1/2 -translate-x-1/2 md:translate-x-0 
+    md:bottom-8 md:right-8 md:left-auto
+    flex items-center gap-2 p-2 rounded-full
+    bg-white/90 dark:bg-gray-900/90 
+    backdrop-blur-xl border border-gray-200 dark:border-gray-800 
+    shadow-[0_8px_30px_rgb(0,0,0,0.12)]"
+>
+    
+    {/* 1. Scratchpad */}
+    <button
+        onClick={() => setIsScratchOpen(!isScratchOpen)}
+        className="group relative w-12 h-12 rounded-full flex items-center justify-center text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-white transition-all duration-200"
+        title="Scratchpad"
+    >
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/>
+        </svg>
+        
+        <span className="absolute -top-10 scale-0 group-hover:scale-100 transition-transform bg-gray-900 text-white text-[10px] px-2 py-1 rounded-md font-bold uppercase tracking-wider">
+            Notes
+        </span>
+    </button>
 
-          {/* 2. Calculator */}
-          <button
-            onClick={() => setIsCalcOpen(!isCalcOpen)}
-            className="
-      w-14 h-14 md:w-16 md:h-16 bg-linear-to-br from-blue-400 to-indigo-800 text-white rounded-full shadow-lg flex items-center justify-center text-2xl md:text-3xl transition-transform hover:scale-110 active:scale-95 active:shadow-inner"
-            title="Calculator"
-          >
-            🧮
-          </button>
+    {/* 2. Calculator */}
+    <button
+        onClick={() => setIsCalcOpen(!isCalcOpen)}
+        className="group relative w-12 h-12 rounded-full flex items-center justify-center text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-white transition-all duration-200"
+        title="Calculator"
+    >
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <rect width="16" height="20" x="4" y="2" rx="2"/><line x1="8" x2="16" y1="6" y2="6"/><line x1="16" x2="16" y1="14" y2="18"/><path d="M16 10h.01"/><path d="M12 10h.01"/><path d="M8 10h.01"/><path d="M12 14h.01"/><path d="M8 14h.01"/><path d="M12 18h.01"/><path d="M8 18h.01"/>
+        </svg>
 
-          {/* 3. Help */}
-          <button
-            onClick={() => setIsHelpOpen(!isHelpOpen)}
-            className="
-      w-14 h-14 md:w-16 md:h-16 bg-linear-to-br from-lime-400 to-lime-700 text-white rounded-full shadow-lg flex items-center justify-center text-2xl md:text-5xl font-extrabold transition-transform hover:scale-110 active:scale-95 active:shadow-inner border-emerald-200/50"
-            title="Help & Instructions"
-          >
-            ?
-          </button>
-        </div>
+        <span className="absolute -top-10 scale-0 group-hover:scale-100 transition-transform bg-gray-900 text-white text-[10px] px-2 py-1 rounded-md font-bold uppercase tracking-wider">
+            Calculator
+        </span>
+
+    </button>
+
+    <div className="w-px h-6 bg-gray-200 dark:bg-gray-700 mx-1"></div>
+
+    {/* 3. Spending Tracker */}
+    <button 
+        onClick={() => setShowImport(true)} 
+        className="group relative w-12 h-12 rounded-full flex items-center justify-center bg-emerald-500 text-white shadow-lg shadow-emerald-500/30 hover:bg-emerald-600 hover:scale-105 transition-all duration-200"
+        title="Spending Tracker"
+    >
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <line x1="12" x2="12" y1="2" y2="22"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
+        </svg>
+
+        <span className="absolute -top-10 scale-0 group-hover:scale-100 transition-transform bg-gray-900 text-white text-[10px] px-2 py-1 rounded-md font-bold uppercase tracking-wider">
+            Spending Tracker
+        </span>
+    </button>
+
+    {/* 4. Help */}
+    <button
+        onClick={() => setIsHelpOpen(!isHelpOpen)}
+        className="group relative w-12 h-12 rounded-full flex items-center justify-center text-gray-400 hover:text-red-600 dark:hover:text-gray-300 transition-all duration-200"
+        title="Help"
+    >
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><path d="M12 17h.01"/>
+        </svg>
+
+        <span className="absolute -top-10 scale-0 group-hover:scale-100 transition-transform bg-gray-900 text-white text-[10px] px-2 py-1 rounded-md font-bold uppercase tracking-wider">
+            Help
+        </span>
+    </button>
+</div>
 
 
         {/* Widgets */}
@@ -1209,9 +1442,17 @@ export default function BudgetApp() {
           </button>
         </div>
 
+        <SpendingTracker 
+  isOpen={showImport} 
+  onClose={() => setShowImport(false)} 
+  categories={items} 
+  onImport={handleSmartImport} 
+/>
+
+
       </div>
 
-      {/* --- WIZARD MODAL --- */}
+      {/* scratch create your own modal */}
       {showSetupWizard && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
           <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-[90vw] md:max-w-lg overflow-hidden animate-in zoom-in-95 duration-200">

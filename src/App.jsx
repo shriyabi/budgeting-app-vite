@@ -59,7 +59,7 @@ const getSpreadsheetId = (input) => {
 const BudgetEngine = {
   parseLocalDate: (dateStr) => {
     if (!dateStr) return new Date();
-    const parts = dateStr.split('-'); 
+    const parts = dateStr.split('-');
     return new Date(parts[0], parts[1] - 1, parts[2]);
   },
 
@@ -73,13 +73,13 @@ const BudgetEngine = {
 
     switch (budgetDuration) {
       case 'Weekly':
-        end.setDate(start.getDate() + 6); 
+        end.setDate(start.getDate() + 6);
         end.setHours(23, 59, 59, 999);
         label = `Weekly (${start.toLocaleDateString()})`;
         total = netAnnual / 52;
         break;
       case 'Bi-Weekly':
-        end.setDate(start.getDate() + 13); 
+        end.setDate(start.getDate() + 13);
         end.setHours(23, 59, 59, 999);
         label = `Bi-Weekly (${start.toLocaleDateString()})`;
         total = netAnnual / 26;
@@ -111,7 +111,7 @@ const BudgetEngine = {
 
     if (!item.lastPaidDate || !item.recurrenceFreq) return false;
 
-    const lastPaid = new Date(item.lastPaidDate); 
+    const lastPaid = new Date(item.lastPaidDate);
     lastPaid.setHours(12, 0, 0, 0);
 
     const start = new Date(budgetStart);
@@ -174,6 +174,9 @@ export default function BudgetApp() {
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [showImport, setShowImport] = useState(false);
   const [chartMode, setChartMode] = useState('budget'); // budget or spent 
+  const [isStealthMode, setIsStealthMode] = useState(false); 
+
+  const sensitiveDataClass = isStealthMode ? "blur-md select-none transition-all duration-300" : "transition-all duration-300";
 
   // Budget calcutations 
   // 1. calc net income (defualt: annual)
@@ -343,26 +346,27 @@ export default function BudgetApp() {
             payFrequency, budgetDuration, targetDate,
             salaryFrequency
           },
-          
+
           //intgerate spending gtracking
           items: items.map(item => {
             const hasRecurrence = item.recurrenceFreq && item.recurrenceFreq.trim() !== "";
             return {
-             category: item.category,
-             amount: item.amount,
-             recurrenceFreq: item.recurrenceFreq,
-             lastPaidDate: item.lastPaidDate,
-             isActive: hasRecurrence,
-             spent: item.spent || 0, 
-             color: item.color
-            }}),
+              category: item.category,
+              amount: item.amount,
+              recurrenceFreq: item.recurrenceFreq,
+              lastPaidDate: item.lastPaidDate,
+              isActive: hasRecurrence,
+              spent: item.spent || 0,
+              color: item.color
+            }
+          }),
 
           syncDesign: shouldSyncDesign
         })
       });
       setSpreadsheetStatus("✅ Saved!");
     } catch (e) { setSpreadsheetStatus(`Error: ${e.message}`); }
-};
+  };
 
   const handleGenerateBudget = async () => {
     setShowSetupWizard(false);
@@ -558,73 +562,73 @@ export default function BudgetApp() {
   };
 
   const handleSmartImport = (importedData) => {
-  const newItems = items.map(item => {
-    const matchKey = Object.keys(importedData).find(key => key.toLowerCase() === item.category.toLowerCase());
-    if (matchKey) {
-      // Add imported amount to existing spent amount
-      const currentSpent = item.spent || 0;
-      return { ...item, spent: currentSpent + importedData[matchKey] };
-    }
-    return item;
-  });
+    const newItems = items.map(item => {
+      const matchKey = Object.keys(importedData).find(key => key.toLowerCase() === item.category.toLowerCase());
+      if (matchKey) {
+        // Add imported amount to existing spent amount
+        const currentSpent = item.spent || 0;
+        return { ...item, spent: currentSpent + importedData[matchKey] };
+      }
+      return item;
+    });
 
-  setItems(newItems);
-  setChartMode('spent'); // Switch view
-};
+    setItems(newItems);
+    setChartMode('spent'); // Switch view
+  };
 
-// process slice overlay for budget pie chart (shows fraction spent of each budget in the chart)
-const renderProgressSlice = (props) => {
-  const { 
-    cx, cy, innerRadius, outerRadius, startAngle, endAngle, fill, payload 
-  } = props;
-  
-  const budget = payload.amount || 0;
-  const spent = payload.spent || 0;
-  const pct = budget > 0 ? Math.min(spent / budget, 1.2) : 0; // Cap visual at 120%
+  // process slice overlay for budget pie chart (shows fraction spent of each budget in the chart)
+  const renderProgressSlice = (props) => {
+    const {
+      cx, cy, innerRadius, outerRadius, startAngle, endAngle, fill, payload
+    } = props;
 
-  //portion filled based on percentage
-  const radiusWidth = outerRadius - innerRadius;
-  const spentOuterRadius = innerRadius + (radiusWidth * pct);
+    const budget = payload.amount || 0;
+    const spent = payload.spent || 0;
+    const pct = budget > 0 ? Math.min(spent / budget, 1.2) : 0; // Cap visual at 120%
 
-  return (
-    <g>
-      {/* layer 1: og chart w muted background */}
-      <Sector
-        cx={cx} cy={cy}
-        innerRadius={innerRadius}
-        outerRadius={outerRadius}
-        startAngle={startAngle}
-        endAngle={endAngle}
-        fill={fill}
-        opacity={0.15} 
-        cornerRadius={4}
-      />
-      
-      {/* layer 2: % spent overlay */}
-      <Sector
-        cx={cx} cy={cy}
-        innerRadius={innerRadius}
-        outerRadius={spentOuterRadius}
-        startAngle={startAngle}
-        endAngle={endAngle}
-        fill={spent > budget ? "#ef4444" : fill} // alert if over budget
-        cornerRadius={4}
-      />
-      
-      <Sector
-        cx={cx} cy={cy}
-        innerRadius={innerRadius}
-        outerRadius={outerRadius}
-        startAngle={startAngle}
-        endAngle={endAngle}
-        fill="none"
-        stroke={fill}
-        strokeOpacity={0.3}
-        strokeWidth={1}
-      />
-    </g>
-  );
-};
+    //portion filled based on percentage
+    const radiusWidth = outerRadius - innerRadius;
+    const spentOuterRadius = innerRadius + (radiusWidth * pct);
+
+    return (
+      <g>
+        {/* layer 1: og chart w muted background */}
+        <Sector
+          cx={cx} cy={cy}
+          innerRadius={innerRadius}
+          outerRadius={outerRadius}
+          startAngle={startAngle}
+          endAngle={endAngle}
+          fill={fill}
+          opacity={0.15}
+          cornerRadius={4}
+        />
+
+        {/* layer 2: % spent overlay */}
+        <Sector
+          cx={cx} cy={cy}
+          innerRadius={innerRadius}
+          outerRadius={spentOuterRadius}
+          startAngle={startAngle}
+          endAngle={endAngle}
+          fill={spent > budget ? "#ef4444" : fill} // alert if over budget
+          cornerRadius={4}
+        />
+
+        <Sector
+          cx={cx} cy={cy}
+          innerRadius={innerRadius}
+          outerRadius={outerRadius}
+          startAngle={startAngle}
+          endAngle={endAngle}
+          fill="none"
+          stroke={fill}
+          strokeOpacity={0.3}
+          strokeWidth={1}
+        />
+      </g>
+    );
+  };
 
   return (
     <div className='w-full overflow-x-hidden bg-linear-to-br from-[#fdfbf7] to-[#ecfdf5] dark:from-gray-950 dark:to-[#02261d] h-auto'>
@@ -661,6 +665,7 @@ const renderProgressSlice = (props) => {
             >
               ✕
             </button>
+
           </div>
         </div>
 
@@ -790,97 +795,118 @@ const renderProgressSlice = (props) => {
 
         {/* Salary/Tax Calculator */}
 
-        <div className="bg-linear-to-br from-[#1a4731] via-[#0f5132] to-[#064e3b] p-8 rounded-3xl shadow-xl shadow-[#064e3b]/20 mb-10 text-white relative overflow-hidden border-2 border-[#4ade80]/20">
+<div className="bg-linear-to-br from-[#1a4731] via-[#0f5132] to-[#064e3b] p-8 rounded-3xl shadow-xl shadow-[#064e3b]/20 mb-10 text-white relative overflow-hidden border-2 border-[#4ade80]/20 transition-all duration-300">
 
-          <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-white/5 via-transparent to-transparent -mr-32 -mt-32 pointer-events-none opacity-50 blur-2xl"></div>
-          <div className="absolute bottom-0 left-0 w-[300px] h-[300px] bg-emerald-400/10 rounded-full blur-3xl -ml-20 -mb-20 pointer-events-none"></div>
+  {/* Background Effects */}
+  <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-white/5 via-transparent to-transparent -mr-32 -mt-32 pointer-events-none opacity-50 blur-2xl"></div>
+  <div className="absolute bottom-0 left-0 w-[300px] h-[300px] bg-emerald-400/10 rounded-full blur-3xl -ml-20 -mb-20 pointer-events-none"></div>
 
-          <div className="flex flex-wrap gap-8 items-end relative z-10">
+  <div className="flex flex-wrap gap-8 items-end relative z-10">
 
-            {/* input fields */}
-            <div>
-              <label className="text-[10px] text-[#86efac] font-bold uppercase tracking-widest mb-2 block font-mono opacity-80">
-                Base Salary
-              </label>
-              <div className="flex items-center gap-2">
-                {/* Amount Input */}
-                <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-emerald-500 font-bold">$</span>
-                  <input
-                    type="number"
-                    className="pl-6 p-3 rounded-xl bg-[#022c22]/60 border border-[#34d399]/30 w-32 md:w-36 text-white font-mono text-lg focus:outline-none focus:ring-2 focus:ring-[#4ade80] shadow-inner"
-                    value={salary}
-                    onChange={e => setSalary(e.target.value)}
-                  />
-                </div>
-
-                {/* Frequency Dropdown */}
-                <select
-                  value={salaryFrequency}
-                  onChange={(e) => setSalaryFrequency(e.target.value)}
-                  className="p-3 rounded-xl bg-black/10 border border-emerald-500/10 text-emerald-100/70 font-mono text-xs font-bold uppercase focus:outline-none focus:bg-black/20 focus:text-emerald-100 [&>option]:text-black cursor-pointer hover:bg-black/20 transition-all"
-                >
-                  <option value="Annual">/ Year</option>
-                  <option value="Monthly">/ Mo</option>
-                  <option value="Bi-Weekly">/ 2 Wk</option>
-                  <option value="Weekly">/ Wk</option>
-                </select>
-              </div>
-            </div>
-
-            <div>
-              <label className="text-[10px] text-[#86efac] font-bold uppercase tracking-widest mb-2 block font-mono opacity-80">
-                Bonus
-              </label>
-              <div className="relative">
-                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-emerald-500 font-bold">$</span>
-                <input
-                  type="number"
-                  className="pl-8 p-3 rounded-xl bg-[#022c22]/60 border border-[#34d399]/30 w-36 focus:outline-none focus:ring-2 focus:ring-[#4ade80] text-white font-mono text-lg shadow-inner"
-                  value={bonus}
-                  onChange={e => setBonus(e.target.value)}
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="text-[10px] text-[#86efac] font-bold uppercase tracking-widest mb-2 block font-mono opacity-80">
-                State Tax
-              </label>
-              <select
-                className="p-4 rounded-xl bg-[#022c22]/60 border border-[#34d399]/30 w-28 focus:outline-none focus:ring-2 focus:ring-[#4ade80] text-white font-mono text-lg [&>option]:text-black cursor-pointer"
-                value={stateCode}
-                onChange={e => setStateCode(e.target.value)}
-              >
-                {Object.keys(STATE_TAX_RATES).map(s => <option key={s}>{s}</option>)}
-              </select>
-            </div>
-
-            {/* income display */}
-            <div className="ml-auto text-right">
-              <div className="text-[10px] text-[#86efac] font-bold uppercase tracking-widest mb-2 opacity-80 font-mono flex items-center justify-end gap-1">
-                {budgetDuration} Net Income
-              </div>
-              <div className="text-5xl font-extrabold text-transparent bg-clip-text bg-linear-to-b from-white to-[#86efac] drop-shadow-sm tracking-tight font-sans">
-                ${effectiveBudgetIncome.toLocaleString()}
-              </div>
-            </div>
-          </div>
-
-          {/* progress bar on net income used */}
-          <div className="mt-8 relative z-10">
-            <div className="flex justify-between text-[10px] font-bold uppercase tracking-widest mb-2 text-[#86efac] font-mono">
-              <span>Funds Utilized</span>
-              <span>{isNaN(progressPercent) ? 0 : Math.round(progressPercent)}%</span>
-            </div>
-            <div className="h-4 bg-[#022c22]/50 rounded-full overflow-hidden border border-[#34d399]/20 p-[2px]">
-              <div
-                className={`h-full rounded-full transition-all duration-1000 shadow-[0_0_10px_rgba(74,222,128,0.3)] ${progressPercent > 100 ? 'bg-rose-500' : 'bg-linear-to-r from-[#15803d] via-[#22c55e] to-[#86efac]'}`}
-                style={{ width: `${isNaN(progressPercent) ? 0 : Math.min(progressPercent, 100)}%` }}
-              ></div>
-            </div>
-          </div>
+    {/* input fields */}
+    <div>
+      <label className="text-[10px] text-[#86efac] font-bold uppercase tracking-widest mb-2 block font-mono opacity-80">
+        Base Salary
+      </label>
+      <div className="flex items-center gap-2">
+        {/* Amount Input */}
+        <div className="relative">
+          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-emerald-500 font-bold">$</span>
+          <input
+            type="number"
+            className={`pl-6 p-3 rounded-xl bg-[#022c22]/60 border border-[#34d399]/30 w-32 md:w-36 text-white font-mono text-lg focus:outline-none focus:ring-2 focus:ring-[#4ade80] shadow-inner transition-all duration-300
+              ${sensitiveDataClass} 
+            `}
+            value={salary}
+            onChange={e => setSalary(e.target.value)}
+          />
         </div>
+
+        {/* Frequency Dropdown */}
+        <select
+          value={salaryFrequency}
+          onChange={(e) => setSalaryFrequency(e.target.value)}
+          className="p-3 rounded-xl bg-black/10 border border-emerald-500/10 text-emerald-100/70 font-mono text-xs font-bold uppercase focus:outline-none focus:bg-black/20 focus:text-emerald-100 [&>option]:text-black cursor-pointer hover:bg-black/20 transition-all"
+        >
+          <option value="Annual">/ Year</option>
+          <option value="Monthly">/ Mo</option>
+          <option value="Bi-Weekly">/ 2 Wk</option>
+          <option value="Weekly">/ Wk</option>
+        </select>
+      </div>
+    </div>
+
+    <div>
+      <label className="text-[10px] text-[#86efac] font-bold uppercase tracking-widest mb-2 block font-mono opacity-80">
+        Bonus
+      </label>
+      <div className="relative">
+        <span className="absolute left-4 top-1/2 -translate-y-1/2 text-emerald-500 font-bold">$</span>
+        <input
+          type="number"
+          className={`pl-8 p-3 rounded-xl bg-[#022c22]/60 border border-[#34d399]/30 w-36 focus:outline-none focus:ring-2 focus:ring-[#4ade80] text-white font-mono text-lg shadow-inner transition-all duration-300
+             ${sensitiveDataClass}
+          `}
+          value={bonus}
+          onChange={e => setBonus(e.target.value)}
+        />
+      </div>
+    </div>
+
+    <div>
+      <label className="text-[10px] text-[#86efac] font-bold uppercase tracking-widest mb-2 block font-mono opacity-80">
+        State Tax
+      </label>
+      <select
+        className={`p-4 rounded-xl bg-[#022c22]/60 border border-[#34d399]/30 w-28 focus:outline-none focus:ring-2 focus:ring-[#4ade80] text-white font-mono text-lg [&>option]:text-black cursor-pointer ${sensitiveDataClass}`}
+        value={stateCode}
+        onChange={e => setStateCode(e.target.value)}
+      >
+        {Object.keys(STATE_TAX_RATES).map(s => <option key={s}>{s}</option>)}
+      </select>
+    </div>
+
+    <div className="ml-auto flex items-end gap-4">
+      <button
+        onClick={() => setIsStealthMode(!isStealthMode)}
+        className="mb-1 p-2 rounded-full bg-black/20 text-emerald-300 hover:bg-black/40 hover:text-white transition-all border border-transparent hover:border-emerald-500/30 group"
+        title={isStealthMode ? "Reveal Values" : "Stealth Mode"}
+      >
+        {isStealthMode ? (
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9.88 9.88a3 3 0 1 0 4.24 4.24" /><path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68" /><path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61" /><line x1="2" x2="22" y1="2" y2="22" /></svg>
+        ) : (
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" /><circle cx="12" cy="12" r="3" /></svg>
+        )}
+      </button>
+
+      <div className="text-right">
+        <div className="text-[10px] text-[#86efac] font-bold uppercase tracking-widest mb-2 opacity-80 font-mono flex items-center justify-end gap-1">
+          {budgetDuration} Net Income
+        </div>
+        <div className={`text-5xl font-extrabold text-transparent bg-clip-text bg-linear-to-b from-white to-[#86efac] drop-shadow-sm tracking-tight font-sans transition-all duration-500
+           ${sensitiveDataClass}
+        `}>
+          ${effectiveBudgetIncome.toLocaleString()}
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  {/* progress bar on net income used */}
+  <div className="mt-8 relative z-10">
+    <div className="flex justify-between text-[10px] font-bold uppercase tracking-widest mb-2 text-[#86efac] font-mono">
+      <span>Funds Utilized</span>
+      <span>{isNaN(progressPercent) ? 0 : Math.round(progressPercent)}%</span>
+    </div>
+    <div className="h-4 bg-[#022c22]/50 rounded-full overflow-hidden border border-[#34d399]/20 p-[2px]">
+      <div
+        className={`h-full rounded-full transition-all duration-1000 shadow-[0_0_10px_rgba(74,222,128,0.3)] ${progressPercent > 100 ? 'bg-rose-500' : 'bg-linear-to-r from-[#15803d] via-[#22c55e] to-[#86efac]'}`}
+        style={{ width: `${isNaN(progressPercent) ? 0 : Math.min(progressPercent, 100)}%` }}
+      ></div>
+    </div>
+  </div>
+</div>
 
 
         <DragDropContext onDragEnd={onDragEnd}>
@@ -908,64 +934,78 @@ const renderProgressSlice = (props) => {
               </div>
 
               {/* Transfer Amount */}
+<div className="flex justify-center items-center gap-4 mb-8">
 
+  {/* 1. Input Field */}
+  <div className="flex items-center gap-3 bg-slate-100 dark:bg-gray-700 p-2 pl-4 rounded-full border border-slate-100 dark:border-gray-600 shadow-sm transition-colors duration-300">
+    <span className="text-xs font-bold text-gray-400 dark:text-gray-400 uppercase tracking-wide font-mono">Transfer Amount</span>
+    <span className="font-bold text-gray-800 dark:text-white">$</span>
+    <input 
+      type="number" 
+      value={transferAmount} 
+      onChange={e => setTransferAmount(e.target.value)} 
+      className="w-16 font-bold bg-transparent focus:outline-none text-gray-800 dark:text-white" 
+    />
+  </div>
 
-              <div className="flex justify-center items-center gap-4 mb-8">
+  {/* 2. Draggable Coin */}
+  <Droppable droppableId="unallocated-source" isDropDisabled={true} direction="horizontal">
+    {(provided) => (
+      <div ref={provided.innerRef} {...provided.droppableProps}>
+        <Draggable draggableId="unallocated-coin-drag" index={0}>
+          {(provided, snapshot) => (
+            <div 
+              ref={provided.innerRef} 
+              {...provided.draggableProps} 
+              {...provided.dragHandleProps} 
+              className="w-12 h-12 flex items-center justify-center border-2 border-yellow-600/20 shadow-md rounded-full cursor-grab active:cursor-grabbing hover:scale-110 transition-transform text-2xl z-20 bg-linear-to-br from-yellow-100 to-yellow-300 text-yellow-800 pointer-events-auto"
+            >
+              🪙
+              
+              {snapshot.isDragging && (
+                 <div className="bg-emerald-600 text-white font-bold px-4 py-2 rounded-full shadow-2xl fixed z-50 pointer-events-none transform -translate-x-1/2 -translate-y-1/2">
+                    + ${transferAmount}
+                 </div>
+              )}
+            </div>
+          )}
+        </Draggable>
+        {provided.placeholder}
+      </div>
+    )}
+  </Droppable>
 
-                <div className="flex items-center gap-3 bg-slate-100 dark:bg-gray-700 p-2 pl-4 rounded-full border border-slate-100 dark:border-gray-600 shadow-sm transition-colors duration-300">
-                  <span className="text-xs font-bold text-gray-400 dark:text-gray-400 uppercase tracking-wide font-mono">Transfer Amount</span>
-                  <span className="font-bold text-gray-800 dark:text-white">$</span>
-                  <input type="number" value={transferAmount} onChange={e => setTransferAmount(e.target.value)} className="w-16 font-bold bg-transparent focus:outline-none text-gray-800 dark:text-white" />
-                </div>
+  {/* 3. Help Icon */}
+  <button
+    type="button"
+    onClick={() => setShowTransferHelp(!showTransferHelp)}
+    onMouseEnter={() => setShowTransferHelp(true)}
+    onMouseLeave={() => setShowTransferHelp(false)}
+    className="relative focus:outline-none z-30"
+  >
+    <div className="w-6 h-6 rounded-full bg-gray-200 dark:bg-gray-600 text-gray-500 dark:text-gray-300 flex items-center justify-center text-xs font-bold border border-gray-300 dark:border-gray-500 hover:bg-emerald-500 hover:text-white hover:border-emerald-500 transition-colors">
+      ?
+    </div>
 
-                <Droppable droppableId="unallocated-source" isDropDisabled={true} direction="horizontal">
-                  {(provided) => (
-                    <div ref={provided.innerRef} {...provided.droppableProps}>
-                      <Draggable draggableId="unallocated-coin-drag" index={0}>
-                        {(provided, snapshot) => (
-                          <div ref={provided.innerRef} {...provided.draggableProps} {...provided.dragHandleProps} className="w-12 h-12 flex items-center justify-center border-2 border-yellow-600/20 shadow-md rounded-full cursor-grab active:cursor-grabbing hover:scale-110 transition-transform text-2xl z-20 bg-linear-to-br from-yellow-100 to-yellow-300 text-yellow-800 pointer-events-auto">
-                            🪙
-                            {snapshot.isDragging && <div className="bg-emerald-600 text-white font-bold px-4 py-2 rounded-full shadow-2xl fixed z-50 pointer-events-none transform -translate-x-1/2 -translate-y-1/2">+ ${transferAmount}</div>}
-                          </div>
-                        )}
-                      </Draggable>
-                      {provided.placeholder}
-                    </div>
-                  )}
-                </Droppable>
-
-                {/* Help Icon */}
-                <button
-                  type="button"
-                  onClick={() => setShowTransferHelp(!showTransferHelp)}
-                  onMouseEnter={() => setShowTransferHelp(true)}
-                  onMouseLeave={() => setShowTransferHelp(false)}
-                  className="relative focus:outline-none z-30"
-                >
-                  <div className="w-6 h-6 rounded-full bg-gray-200 dark:bg-gray-600 text-gray-500 dark:text-gray-300 flex items-center justify-center text-xs font-bold border border-gray-300 dark:border-gray-500 hover:bg-emerald-500 hover:text-white hover:border-emerald-500 transition-colors">
-                    ?
-                  </div>
-
-                  {/* Tooltip */}
-                  <div
-                    className={`absolute bottom-full right-0 mb-3 w-64 p-4 bg-gray-900 text-white text-xs rounded-xl shadow-xl transition-all transform z-50 text-left pointer-events-none origin-bottom-right
+    {/* Tooltip */}
+    <div
+      className={`absolute bottom-full right-0 mb-3 w-64 p-4 bg-gray-900 text-white text-xs rounded-xl shadow-xl transition-all transform z-50 text-left pointer-events-none origin-bottom-right
       ${showTransferHelp ? 'opacity-100 visible translate-y-0' : 'opacity-0 invisible -translate-y-1'} `}
-                  >
-                    <div className="font-bold uppercase tracking-widest text-gray-400 mb-2 border-b border-gray-700 pb-1">How to Move Money</div>
-                    <div className="flex items-start gap-2 mb-2">
-                      <span className="text-lg leading-none">🪙</span>
-                      <span className="leading-tight">Drag <b>Coin</b> to add new money from your Income to a Category.</span>
-                    </div>
-                    <div className="flex items-start gap-2">
-                      <span className="text-lg leading-none">💸</span>
-                      <span className="leading-tight">Drag <b>Bill</b> (next to category) to move money between buckets.</span>
-                    </div>
+    >
+      <div className="font-bold uppercase tracking-widest text-gray-400 mb-2 border-b border-gray-700 pb-1">How to Move Money</div>
+      <div className="flex items-start gap-2 mb-2">
+        <span className="text-lg leading-none">🪙</span>
+        <span className="leading-tight">Drag <b>Coin</b> to add new money from your Income to a Category.</span>
+      </div>
+      <div className="flex items-start gap-2">
+        <span className="text-lg leading-none">💸</span>
+        <span className="leading-tight">Drag <b>Bill</b> (next to category) to move money between buckets.</span>
+      </div>
+      <div className="absolute top-full right-1 -mt-1 border-8 border-transparent border-t-gray-900"></div>
+    </div>
+  </button>
 
-                    <div className="absolute top-full right-1 -mt-1 border-8 border-transparent border-t-gray-900"></div>
-                  </div>
-                </button>
-
-              </div>
+</div>
 
               <div className="w-full text-center font-bold text-emerald-600 dark:text-emerald-400 text-sm uppercase h-4 mb-4">
                 {/* {status} */}
@@ -1015,8 +1055,8 @@ const renderProgressSlice = (props) => {
                           <div
                             key={item.id}
                             className={`p-5 rounded-2xl border-2 transition-all duration-300 ${isRecurring
-                                ? 'border-emerald-500 bg-emerald-50/30 dark:bg-emerald-900/10 shadow-md'
-                                : 'border-gray-100 dark:border-gray-700 bg-white dark:bg-gray-800'
+                              ? 'border-emerald-500 bg-emerald-50/30 dark:bg-emerald-900/10 shadow-md'
+                              : 'border-gray-100 dark:border-gray-700 bg-white dark:bg-gray-800'
                               }`}
                           >
                             {/* category info */}
@@ -1060,8 +1100,8 @@ const renderProgressSlice = (props) => {
                                         key={opt}
                                         onClick={() => updateItem('recurrenceFreq', opt)}
                                         className={`px-3 py-2 rounded-lg text-xs font-bold border transition-all active:scale-95 ${item.recurrenceFreq === opt
-                                            ? 'bg-emerald-600 text-white border-emerald-600 shadow-md'
-                                            : 'bg-white dark:bg-gray-700 text-gray-500 border-gray-200 dark:border-gray-600 hover:border-emerald-300'
+                                          ? 'bg-emerald-600 text-white border-emerald-600 shadow-md'
+                                          : 'bg-white dark:bg-gray-700 text-gray-500 border-gray-200 dark:border-gray-600 hover:border-emerald-300'
                                           }`}
                                       >
                                         {opt}
@@ -1180,249 +1220,247 @@ const renderProgressSlice = (props) => {
             </div>
 
             {/* Chart Div (Right) */}
-<div className="flex-1 w-full lg:w-auto h-full flex flex-col">
-  <div className="bg-white dark:bg-gray-800 p-8 rounded-3xl shadow-lg border border-gray-100 dark:border-gray-700 flex flex-col h-full justify-between transition-colors duration-300 relative">
-    
-    <div className="flex justify-between items-center mb-6">
-      <h3 className="text-gray-400 font-bold uppercase tracking-widest text-xs font-mono">
-        {chartMode === 'budget' ? 'Funds Allocation' : 'Budget Progress'}
-      </h3>
-      
-      {/* budget or spending view */}
-      <div className="bg-gray-100 dark:bg-gray-900 p-1 rounded-xl flex shrink-0">
-        <button
-          onClick={() => setChartMode('budget')}
-          className={`px-3 py-1 text-xs font-bold rounded-lg transition-all ${
-            chartMode === 'budget' 
-              ? 'bg-white dark:bg-gray-700 text-emerald-600 shadow-sm' 
-              : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-300'
-          }`}
-        >
-          Plan
-        </button>
-        <button
-          onClick={() => setChartMode('spent')}
-          className={`px-3 py-1 text-xs font-bold rounded-lg transition-all ${
-            chartMode === 'spent' 
-              ? 'bg-white dark:bg-gray-700 text-rose-500 shadow-sm' 
-              : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-300'
-          }`}
-        >
-          Actual
-        </button>
-      </div>
-    </div>
+            <div className="flex-1 w-full lg:w-auto h-full flex flex-col">
+              <div className="bg-white dark:bg-gray-800 p-8 rounded-3xl shadow-lg border border-gray-100 dark:border-gray-700 flex flex-col h-full justify-between transition-colors duration-300 relative">
+
+                <div className="flex justify-between items-center mb-6">
+                  <h3 className="text-gray-400 font-bold uppercase tracking-widest text-xs font-mono">
+                    {chartMode === 'budget' ? 'Funds Allocation' : 'Budget Progress'}
+                  </h3>
+
+                  {/* budget or spending view */}
+                  <div className="bg-gray-100 dark:bg-gray-900 p-1 rounded-xl flex shrink-0">
+                    <button
+                      onClick={() => setChartMode('budget')}
+                      className={`px-3 py-1 text-xs font-bold rounded-lg transition-all ${chartMode === 'budget'
+                          ? 'bg-white dark:bg-gray-700 text-emerald-600 shadow-sm'
+                          : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-300'
+                        }`}
+                    >
+                      Plan
+                    </button>
+                    <button
+                      onClick={() => setChartMode('spent')}
+                      className={`px-3 py-1 text-xs font-bold rounded-lg transition-all ${chartMode === 'spent'
+                          ? 'bg-white dark:bg-gray-700 text-rose-500 shadow-sm'
+                          : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-300'
+                        }`}
+                    >
+                      Actual
+                    </button>
+                  </div>
+                </div>
 
 
-    {/* Chart Div */}
-    
-    {chartMode === 'budget' ? (
-      
-      // option 1: standard budget view
-      <div className="w-full font-mono uppercase mb-4 h-[400px] lg:h-auto lg:flex-1 min-h-[300px] relative">
-        <div className="absolute inset-0 z-10">
-        <ResponsiveContainer width="100%" height="100%">
-          <PieChart>
-            <Pie
-              data={items.filter(i => i.isActive !== false)}
-              dataKey="amount"
-              nameKey="category"
-              innerRadius="60%"
-              outerRadius="80%"
-              paddingAngle={5}
-              cornerRadius={6}
-            >
-              {items.map((entry, index) => (
-                <Cell
-                  key={entry.id || `cell-${index}`}
-                  fill={entry.color || TAILWIND_COLORS[index % TAILWIND_COLORS.length]}
-                  stroke="none"
-                />
-              ))}
-            </Pie>
-            <Tooltip
-              formatter={(val) => `$${val.toLocaleString()}`}
-              contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)' }}
-            />
-            <Legend
-              content={renderLegend}
-              verticalAlign="bottom"
-              wrapperStyle={{ paddingTop: '20px' }}
-            />
-          </PieChart>
-        </ResponsiveContainer>
-      </div>
-        {/* Total Planned */}
-<div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none pb-12 z-0">
-    <span className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mb-1">Total Plan</span>
-    <span className="text-2xl font-black font-mono text-emerald-600 dark:text-emerald-400">
-       ${items.reduce((sum, item) => sum + (item.amount || 0), 0).toLocaleString()}
-    </span>
-</div>
-      </div>
+                {/* Chart Div */}
 
-    ) : (
+                {chartMode === 'budget' ? (
 
-      // option 2: percentage spent overlay
-      <div className="w-full font-mono uppercase mb-4 h-[400px] lg:h-auto lg:flex-1 min-h-[300px] relative">
-        <div className="absolute inset-0 z-10">
-        <ResponsiveContainer width="100%" height="100%">
-          <PieChart>
-            <Pie
-              data={items.filter(i => i.isActive !== false)}
-              dataKey="amount"
-              nameKey="category"
-              innerRadius="60%"
-              outerRadius="80%"
-              paddingAngle={5}
-              shape={renderProgressSlice}
-              activeShape={renderProgressSlice} 
-            >
-              {items.map((entry, index) => (
-                <Cell
-                  key={entry.id || `cell-${index}`}
-                  fill={entry.color || TAILWIND_COLORS[index % TAILWIND_COLORS.length]}
-                  stroke="none"
-                />
-              ))}
-            </Pie>
-
-            <Tooltip
-              content={({ active, payload }) => {
-                if (active && payload && payload.length) {
-                  const data = payload[0].payload;
-                  const isOver = (data.spent || 0) > data.amount;
-                  return (
-                    <div className="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-xl border border-gray-100 dark:border-gray-700 backdrop-blur-sm bg-opacity-95">
-                      <p className="font-bold text-gray-800 dark:text-white mb-2 text-sm">{data.category}</p>
-                      <div className="space-y-1">
-                        <div className="flex justify-between gap-6 text-xs text-gray-500 font-mono">
-                          <span>Budget:</span>
-                          <span>${data.amount.toLocaleString()}</span>
-                        </div>
-                        <div className="flex justify-between gap-6 text-xs font-mono font-bold">
-                          <span className={isOver ? "text-rose-500" : "text-emerald-600"}>Spent:</span>
-                          <span className={isOver ? "text-rose-500" : "text-emerald-600"}>${(data.spent || 0).toLocaleString()}</span>
-                        </div>
-                      </div>
+                  // option 1: standard budget view
+                  <div className="w-full font-mono uppercase mb-4 h-[400px] lg:h-auto lg:flex-1 min-h-[300px] relative">
+                    <div className="absolute inset-0 z-10">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                          <Pie
+                            data={items.filter(i => i.isActive !== false)}
+                            dataKey="amount"
+                            nameKey="category"
+                            innerRadius="60%"
+                            outerRadius="80%"
+                            paddingAngle={5}
+                            cornerRadius={6}
+                          >
+                            {items.map((entry, index) => (
+                              <Cell
+                                key={entry.id || `cell-${index}`}
+                                fill={entry.color || TAILWIND_COLORS[index % TAILWIND_COLORS.length]}
+                                stroke="none"
+                              />
+                            ))}
+                          </Pie>
+                          <Tooltip
+                            formatter={(val) => `$${val.toLocaleString()}`}
+                            contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)' }}
+                          />
+                          <Legend
+                            content={renderLegend}
+                            verticalAlign="bottom"
+                            wrapperStyle={{ paddingTop: '20px' }}
+                          />
+                        </PieChart>
+                      </ResponsiveContainer>
                     </div>
-                  );
-                }
-                return null;
-              }}
-            />
+                    {/* Total Planned */}
+                    <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none pb-12 z-0">
+                      <span className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mb-1">Total Plan</span>
+                      <span className="text-2xl font-black font-mono text-emerald-600 dark:text-emerald-400">
+                        ${items.reduce((sum, item) => sum + (item.amount || 0), 0).toLocaleString()}
+                      </span>
+                    </div>
+                  </div>
 
-            <Legend
-              content={renderLegend}
-              verticalAlign="bottom"
-              wrapperStyle={{ paddingTop: '20px' }}
-            />
-          </PieChart>
-        </ResponsiveContainer>
-        </div>
-        <div className="absolute inset-0 z-0 flex flex-col items-center justify-center pointer-events-none pb-12">
-          <span className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mb-1">
-            Total Spent
-          </span>
-          <span className="text-2xl font-black font-mono text-rose-500">
-            ${items
-              .filter(i => i.isActive !== false)
-              .reduce((sum, item) => sum + (item.spent || 0), 0)
-              .toLocaleString()}
-          </span>
-          <span className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-1">
-            of ${items.reduce((sum, item) => sum + (item.amount || 0), 0).toLocaleString()}
-          </span>
-        </div>
-      </div>
-    )}
+                ) : (
 
-    {/* Save */}
-    <button
-      onClick={saveBudget}
-      className="w-full font-mono uppercase py-4 bg-gray-900 hover:bg-black dark:bg-emerald-600 dark:hover:bg-emerald-700 text-white text-lg font-bold rounded-2xl shadow-xl mt-2 transition-all active:scale-[0.98] flex items-center justify-center gap-2"
-    >
-      <span>Save Changes</span>
-    </button>
-  </div>
-</div>
+                  // option 2: percentage spent overlay
+                  <div className="w-full font-mono uppercase mb-4 h-[400px] lg:h-auto lg:flex-1 min-h-[300px] relative">
+                    <div className="absolute inset-0 z-10">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                          <Pie
+                            data={items.filter(i => i.isActive !== false)}
+                            dataKey="amount"
+                            nameKey="category"
+                            innerRadius="60%"
+                            outerRadius="80%"
+                            paddingAngle={5}
+                            shape={renderProgressSlice}
+                            activeShape={renderProgressSlice}
+                          >
+                            {items.map((entry, index) => (
+                              <Cell
+                                key={entry.id || `cell-${index}`}
+                                fill={entry.color || TAILWIND_COLORS[index % TAILWIND_COLORS.length]}
+                                stroke="none"
+                              />
+                            ))}
+                          </Pie>
+
+                          <Tooltip
+                            content={({ active, payload }) => {
+                              if (active && payload && payload.length) {
+                                const data = payload[0].payload;
+                                const isOver = (data.spent || 0) > data.amount;
+                                return (
+                                  <div className="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-xl border border-gray-100 dark:border-gray-700 backdrop-blur-sm bg-opacity-95">
+                                    <p className="font-bold text-gray-800 dark:text-white mb-2 text-sm">{data.category}</p>
+                                    <div className="space-y-1">
+                                      <div className="flex justify-between gap-6 text-xs text-gray-500 font-mono">
+                                        <span>Budget:</span>
+                                        <span>${data.amount.toLocaleString()}</span>
+                                      </div>
+                                      <div className="flex justify-between gap-6 text-xs font-mono font-bold">
+                                        <span className={isOver ? "text-rose-500" : "text-emerald-600"}>Spent:</span>
+                                        <span className={isOver ? "text-rose-500" : "text-emerald-600"}>${(data.spent || 0).toLocaleString()}</span>
+                                      </div>
+                                    </div>
+                                  </div>
+                                );
+                              }
+                              return null;
+                            }}
+                          />
+
+                          <Legend
+                            content={renderLegend}
+                            verticalAlign="bottom"
+                            wrapperStyle={{ paddingTop: '20px' }}
+                          />
+                        </PieChart>
+                      </ResponsiveContainer>
+                    </div>
+                    <div className="absolute inset-0 z-0 flex flex-col items-center justify-center pointer-events-none pb-12">
+                      <span className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mb-1">
+                        Total Spent
+                      </span>
+                      <span className="text-2xl font-black font-mono text-rose-500">
+                        ${items
+                          .filter(i => i.isActive !== false)
+                          .reduce((sum, item) => sum + (item.spent || 0), 0)
+                          .toLocaleString()}
+                      </span>
+                      <span className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-1">
+                        of ${items.reduce((sum, item) => sum + (item.amount || 0), 0).toLocaleString()}
+                      </span>
+                    </div>
+                  </div>
+                )}
+
+                {/* Save */}
+                <button
+                  onClick={saveBudget}
+                  className="w-full font-mono uppercase py-4 bg-gray-900 hover:bg-black dark:bg-emerald-600 dark:hover:bg-emerald-700 text-white text-lg font-bold rounded-2xl shadow-xl mt-2 transition-all active:scale-[0.98] flex items-center justify-center gap-2"
+                >
+                  <span>Save Changes</span>
+                </button>
+              </div>
+            </div>
 
           </div>
         </DragDropContext>
 
         {/* Widget Buttons */}
-<div className="fixed z-50 transition-all duration-300
+        <div className="fixed z-50 transition-all duration-300
     bottom-6 left-1/2 -translate-x-1/2 md:translate-x-0 
     md:bottom-8 md:right-8 md:left-auto
     flex items-center gap-2 p-2 rounded-full
     bg-white/90 dark:bg-gray-900/90 
     backdrop-blur-xl border border-gray-200 dark:border-gray-800 
     shadow-[0_8px_30px_rgb(0,0,0,0.12)]"
->
-    
-    {/* 1. Scratchpad */}
-    <button
-        onClick={() => setIsScratchOpen(!isScratchOpen)}
-        className="group relative w-12 h-12 rounded-full flex items-center justify-center text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-white transition-all duration-200"
-        title="Scratchpad"
-    >
-        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/>
-        </svg>
-        
-        <span className="absolute -top-10 scale-0 group-hover:scale-100 transition-transform bg-gray-900 text-white text-[10px] px-2 py-1 rounded-md font-bold uppercase tracking-wider">
-            Notes
-        </span>
-    </button>
+        >
 
-    {/* 2. Calculator */}
-    <button
-        onClick={() => setIsCalcOpen(!isCalcOpen)}
-        className="group relative w-12 h-12 rounded-full flex items-center justify-center text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-white transition-all duration-200"
-        title="Calculator"
-    >
-        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <rect width="16" height="20" x="4" y="2" rx="2"/><line x1="8" x2="16" y1="6" y2="6"/><line x1="16" x2="16" y1="14" y2="18"/><path d="M16 10h.01"/><path d="M12 10h.01"/><path d="M8 10h.01"/><path d="M12 14h.01"/><path d="M8 14h.01"/><path d="M12 18h.01"/><path d="M8 18h.01"/>
-        </svg>
+          {/* 1. Scratchpad */}
+          <button
+            onClick={() => setIsScratchOpen(!isScratchOpen)}
+            className="group relative w-12 h-12 rounded-full flex items-center justify-center text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-white transition-all duration-200"
+            title="Scratchpad"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
+            </svg>
 
-        <span className="absolute -top-10 scale-0 group-hover:scale-100 transition-transform bg-gray-900 text-white text-[10px] px-2 py-1 rounded-md font-bold uppercase tracking-wider">
-            Calculator
-        </span>
+            <span className="absolute -top-10 scale-0 group-hover:scale-100 transition-transform bg-gray-900 text-white text-[10px] px-2 py-1 rounded-md font-bold uppercase tracking-wider">
+              Notes
+            </span>
+          </button>
 
-    </button>
+          {/* 2. Calculator */}
+          <button
+            onClick={() => setIsCalcOpen(!isCalcOpen)}
+            className="group relative w-12 h-12 rounded-full flex items-center justify-center text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-white transition-all duration-200"
+            title="Calculator"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <rect width="16" height="20" x="4" y="2" rx="2" /><line x1="8" x2="16" y1="6" y2="6" /><line x1="16" x2="16" y1="14" y2="18" /><path d="M16 10h.01" /><path d="M12 10h.01" /><path d="M8 10h.01" /><path d="M12 14h.01" /><path d="M8 14h.01" /><path d="M12 18h.01" /><path d="M8 18h.01" />
+            </svg>
 
-    <div className="w-px h-6 bg-gray-200 dark:bg-gray-700 mx-1"></div>
+            <span className="absolute -top-10 scale-0 group-hover:scale-100 transition-transform bg-gray-900 text-white text-[10px] px-2 py-1 rounded-md font-bold uppercase tracking-wider">
+              Calculator
+            </span>
 
-    {/* 3. Spending Tracker */}
-    <button 
-        onClick={() => setShowImport(true)} 
-        className="group relative w-12 h-12 rounded-full flex items-center justify-center bg-emerald-500 text-white shadow-lg shadow-emerald-500/30 hover:bg-emerald-600 hover:scale-105 transition-all duration-200"
-        title="Spending Tracker"
-    >
-        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-            <line x1="12" x2="12" y1="2" y2="22"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
-        </svg>
+          </button>
 
-        <span className="absolute -top-10 scale-0 group-hover:scale-100 transition-transform bg-gray-900 text-white text-[10px] px-2 py-1 rounded-md font-bold uppercase tracking-wider">
-            Spending Tracker
-        </span>
-    </button>
+          <div className="w-px h-6 bg-gray-200 dark:bg-gray-700 mx-1"></div>
 
-    {/* 4. Help */}
-    <button
-        onClick={() => setIsHelpOpen(!isHelpOpen)}
-        className="group relative w-12 h-12 rounded-full flex items-center justify-center text-gray-400 hover:text-red-600 dark:hover:text-gray-300 transition-all duration-200"
-        title="Help"
-    >
-        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><path d="M12 17h.01"/>
-        </svg>
+          {/* 3. Spending Tracker */}
+          <button
+            onClick={() => setShowImport(true)}
+            className="group relative w-12 h-12 rounded-full flex items-center justify-center bg-emerald-500 text-white shadow-lg shadow-emerald-500/30 hover:bg-emerald-600 hover:scale-105 transition-all duration-200"
+            title="Spending Tracker"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="12" x2="12" y1="2" y2="22" /><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+            </svg>
 
-        <span className="absolute -top-10 scale-0 group-hover:scale-100 transition-transform bg-gray-900 text-white text-[10px] px-2 py-1 rounded-md font-bold uppercase tracking-wider">
-            Help
-        </span>
-    </button>
-</div>
+            <span className="absolute -top-10 scale-0 group-hover:scale-100 transition-transform bg-gray-900 text-white text-[10px] px-2 py-1 rounded-md font-bold uppercase tracking-wider">
+              Spending Tracker
+            </span>
+          </button>
+
+          {/* 4. Help */}
+          <button
+            onClick={() => setIsHelpOpen(!isHelpOpen)}
+            className="group relative w-12 h-12 rounded-full flex items-center justify-center text-gray-400 hover:text-red-600 dark:hover:text-gray-300 transition-all duration-200"
+            title="Help"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="10" /><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" /><path d="M12 17h.01" />
+            </svg>
+
+            <span className="absolute -top-10 scale-0 group-hover:scale-100 transition-transform bg-gray-900 text-white text-[10px] px-2 py-1 rounded-md font-bold uppercase tracking-wider">
+              Help
+            </span>
+          </button>
+        </div>
 
 
         {/* Widgets */}
@@ -1446,12 +1484,12 @@ const renderProgressSlice = (props) => {
           </button>
         </div>
 
-        <SpendingTracker 
-  isOpen={showImport} 
-  onClose={() => setShowImport(false)} 
-  categories={items} 
-  onImport={handleSmartImport} 
-/>
+        <SpendingTracker
+          isOpen={showImport}
+          onClose={() => setShowImport(false)}
+          categories={items}
+          onImport={handleSmartImport}
+        />
 
 
       </div>

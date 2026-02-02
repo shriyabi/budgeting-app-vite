@@ -11,38 +11,75 @@ const parseBankText = (text) => {
   const transactions = [];
   const currentYear = new Date().getFullYear();
 
-  const datePattern = /(\d{1,2}\/\d{1,2}(\/\d{2,4})?|\d{4}-\d{2}-\d{2})/;
-  const amountPattern = /(-?\$?[\d,]+\.\d{2})/; 
+  const monthMap = {
+    jan: '01', feb: '02', mar: '03', apr: '04', may: '05', jun: '06',
+    jul: '07', aug: '08', sep: '09', oct: '10', nov: '11', dec: '12'
+  };
+
+  const datePattern = /(\d{1,2}\/\d{1,2}(\/\d{2,4})?|\d{4}-\d{2}-\d{2}|(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\.?\s+\d{1,2})/i;
+
+  const amountPattern = /([+-]?\$?[\d,]+\.\d{2})/; 
+
+  const junkPatterns = [
+    /Purchase authorized on \d{2}\/\d{2}/i, 
+    /Payment to Chase/i,
+    /Recurring Payment/i,
+    /Card Ending \d{4}/i,
+    /\b\d{4,}\b/g, 
+    /\s\s+/g 
+  ];
 
   lines.forEach((line, index) => {
+    if (!line.trim()) return;
+
     const dateMatch = line.match(datePattern);
     const amountMatch = line.match(amountPattern);
 
     if (dateMatch && amountMatch) {
-      let dateStr = dateMatch[0];
-      if (dateStr.length <= 5 && dateStr.includes('/')) {
-        dateStr = `${dateStr}/${currentYear}`; // year
-      }
 
-      let rawAmount = amountMatch[0].replace(/[$,]/g, ''); 
-      let amount = parseFloat(rawAmount);
-      amount = Math.abs(amount); 
+      const isIncome = line.includes('+') || 
+                       /deposit|credit|payroll/i.test(line);
+                       
+      const isBillPay = /payment to|payment thank you|online payment/i.test(line);
 
-      let description = line
-        .replace(dateMatch[0], '')
-        .replace(amountMatch[0], '')
-        .replace(/\b\d{4,}\b/g, '####') 
-        .replace(/Purchase authorized on/i, '')
-        .trim();
+      if (!isIncome && !isBillPay) {
+          let dateStr = dateMatch[0];
+          const textMonthMatch = dateStr.match(/([a-zA-Z]+)\.?\s+(\d+)/);
+          if (textMonthMatch) {
+            const monthStr = textMonthMatch[1].toLowerCase().substring(0, 3);
+            const dayStr = textMonthMatch[2].padStart(2, '0');
+            const monthNum = monthMap[monthStr] || '01';
+            dateStr = `${monthNum}/${dayStr}/${currentYear}`;
+          } 
+          else if (dateStr.length <= 5 && dateStr.includes('/')) {
+            dateStr = `${dateStr}/${currentYear}`;
+          }
 
-      if (description.length > 1) {
-        transactions.push({
-          id: index, 
-          date: dateStr,
-          description: description,
-          amount: amount,
-          category: "Uncategorized" 
-        });
+          let rawAmount = amountMatch[0].replace(/[$,]/g, ''); 
+          let amount = Math.abs(parseFloat(rawAmount));
+
+          // cleaning transaction description
+          let description = line
+            .replace(dateMatch[0], '')  
+            .replace(amountMatch[0], '') 
+            .trim();
+
+          junkPatterns.forEach(p => {
+             description = description.replace(p, '');
+          });
+
+          //remove non alphanumeric
+          description = description.replace(/^[^a-zA-Z0-9]+|[^a-zA-Z0-9]+$/g, '').trim();
+
+          if (description.length > 1 && amount > 0) {
+            transactions.push({
+              id: `txn-${index}-${Date.now()}`, 
+              date: dateStr,
+              description: description,
+              amount: amount,
+              category: "Uncategorized" 
+            });
+          }
       }
     }
   });

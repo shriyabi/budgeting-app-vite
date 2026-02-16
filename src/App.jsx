@@ -175,7 +175,6 @@ export default function BudgetApp() {
   const [showImport, setShowImport] = useState(false);
   const [chartMode, setChartMode] = useState('budget'); // budget or spent 
   const [isStealthMode, setIsStealthMode] = useState(false); 
-
   const sensitiveDataClass = isStealthMode ? "blur-md select-none transition-all duration-300" : "transition-all duration-300";
 
   // Budget calcutations 

@@ -3,10 +3,9 @@ import React, { useState } from 'react';
 const BACKEND_URL = "http://127.0.0.1:8000"; 
 //const BACKEND_URL = "https://budgeting-app-vite.onrender.com"; 
 
-const TemplateGenerator = ({ netIncome, onApply, onClose }) => {
+const TemplateGenerator = ({ netIncome, budgetDuration, targetDate, onApply, onClose }) => {
   const [formData, setFormData] = useState({
     occupation: '',
-    //housingStatus: 'Renting',
     financialGoals: '',
     mustHaveExpenses: '', 
     lifestyleValue: 50 
@@ -47,10 +46,14 @@ const TemplateGenerator = ({ netIncome, onApply, onClose }) => {
     
     //construct a prompt to pass to gemini as context when generating prompt
     const lifestyle = getLifestyleLabel(formData.lifestyleValue);
-    const constructedPrompt = `I am a ${formData.occupation}.
-    My specific financial goals are: ${formData.financialGoals}. 
-    My must have expenses are: ${formData.mustHaveExpenses}. 
-    My spending lifestyle is ${lifestyle.prompt}.`;
+    const constructedPrompt = `
+      I am a ${formData.occupation}.
+      This is a ${budgetDuration} budget starting on ${targetDate}.
+      Total income for this period: $${netIncome}.
+      My specific financial goals are: ${formData.financialGoals}. 
+      My must have expenses are: ${formData.mustHaveExpenses}. 
+      My spending lifestyle is ${lifestyle.prompt}.
+    `;
 
     try {
       const res = await fetch(`${BACKEND_URL}/generate-template`, {
@@ -78,7 +81,7 @@ const TemplateGenerator = ({ netIncome, onApply, onClose }) => {
       <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-[90vw] md:max-w-lg max-h-[90vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
         <div className="bg-emerald-600 p-6 text-white flex-shrink-0">
           <h2 className="text-2xl font-bold font-serif">AI Budget Architect</h2>
-          <p className="text-emerald-100 text-sm">Fine-tune your financial blueprint.</p>
+          <p className="text-emerald-100 text-sm">Planning for your {budgetDuration} cycle.</p>
         </div>
 
         <div className="p-6 space-y-6 flex-1 overflow-y-auto custom-scrollbar">
@@ -96,7 +99,7 @@ const TemplateGenerator = ({ netIncome, onApply, onClose }) => {
 
           {/* goals time */}
           <div>
-            <label className="block text-xs font-mono font-bold uppercase text-gray-500 mb-1">2. What are your goals and priorites? List any expenses you know for sure you have</label>
+            <label className="block text-xs font-mono font-bold uppercase text-gray-500 mb-1">2. What are your goals and priorities?</label>
             <textarea 
               name="financialGoals"
               placeholder="e.g. Saving $5k for an emergency fund and $1k for a new laptop..."
@@ -108,7 +111,7 @@ const TemplateGenerator = ({ netIncome, onApply, onClose }) => {
 
           {/* goals time */}
           <div>
-            <label className="block text-xs font-mono font-bold uppercase text-gray-500 mb-1">3. List out mandatory expenses. </label>
+            <label className="block text-xs font-mono font-bold uppercase text-gray-500 mb-1">3. List out mandatory expenses.</label>
             <textarea 
               name="mustHaveExpenses"
               placeholder="e.g. 2000 in Rent every month. $25 for Spotify a month."

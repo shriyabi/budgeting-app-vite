@@ -1590,10 +1590,12 @@ const applyAiTemplate = (template) => {
       </button>
 
       <TemplateGenerator 
-        netIncome={effectiveBudgetIncome}
-        onApply={applyAiTemplate}
-        onClose={() => setShowTemplateGenerator(false)}
-      />
+    netIncome={effectiveBudgetIncome} 
+    budgetDuration={budgetDuration}  
+    targetDate={targetDate}          
+    onApply={applyAiTemplate}
+    onClose={() => setShowTemplateGenerator(false)}
+  />
     </div>
   </div>
 )}

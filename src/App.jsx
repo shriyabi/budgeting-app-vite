@@ -8,6 +8,7 @@ import ScratchpadWidget from './components/scratchpad';
 import Calculator from './components/calculator';
 import HelpWidget from './components/help';
 import SpendingTracker from './components/spending_tracker';
+import TemplateGenerator from './components/template_generator';
 
 
 const API_URL = import.meta.env.VITE_APP_SCRIPT_URL;
@@ -170,12 +171,13 @@ export default function BudgetApp() {
   const [targetDate, setTargetDate] = useState(new Date().toISOString().slice(0, 10)); // YYYY-MM-DD
   const [showSetupWizard, setShowSetupWizard] = useState(false);
   const [copyFromSheet, setCopyFromSheet] = useState('');
-  //const [incomeDisplayMode, setIncomeDisplayMode] = useState('Monthly'); // Visual Toggle
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [showImport, setShowImport] = useState(false);
   const [chartMode, setChartMode] = useState('budget'); // budget or spent 
   const [isStealthMode, setIsStealthMode] = useState(false); 
   const sensitiveDataClass = isStealthMode ? "blur-md select-none transition-all duration-300" : "transition-all duration-300";
+  const [showTemplateGenerator, setShowTemplateGenerator] = useState(false);
+
 
   // Budget calcutations 
   // 1. calc net income (defualt: annual)
@@ -628,6 +630,19 @@ export default function BudgetApp() {
       </g>
     );
   };
+
+const applyAiTemplate = (template) => {
+  const newItems = Object.entries(template).map(([name, val], idx) => ({
+    id: `ai-gen-${Date.now()}-${idx}`,
+    category: name.toUpperCase(),
+    amount: Number(val),
+    spent: 0,
+    isActive: true,
+    color: TAILWIND_COLORS[idx % TAILWIND_COLORS.length]
+  }));
+  setItems(newItems);
+  setShowTemplateGenerator(false);
+};
 
   return (
     <div className='w-full overflow-x-hidden bg-linear-to-br from-[#fdfbf7] to-[#ecfdf5] dark:from-gray-950 dark:to-[#02261d] h-auto'>
@@ -1445,7 +1460,22 @@ export default function BudgetApp() {
             </span>
           </button>
 
-          {/* 4. Help */}
+                {/* 4. Template Generator */}
+          <button
+  onClick={() => setShowTemplateGenerator(true)}
+  className="group relative w-12 h-12 rounded-full flex items-center justify-center bg-emerald-500 text-white shadow-lg shadow-emerald-500/30 hover:bg-emerald-600 hover:scale-105 transition-all duration-200"
+>
+  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+    <path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z" />
+    <path d="M5 3v4" /><path d="M19 17v4" /><path d="M3 5h4" /><path d="M17 19h4" />
+  </svg>
+  
+  <span className="absolute -top-10 scale-0 group-hover:scale-100 transition-transform bg-gray-900 text-white text-[10px] px-2 py-1 rounded-md font-bold uppercase tracking-wider whitespace-nowrap">
+    Budget Template Generator
+  </span>
+</button>
+
+          {/* 5. Help */}
           <button
             onClick={() => setIsHelpOpen(!isHelpOpen)}
             className="group relative w-12 h-12 rounded-full flex items-center justify-center text-gray-400 hover:text-red-600 dark:hover:text-gray-300 transition-all duration-200"
@@ -1489,6 +1519,8 @@ export default function BudgetApp() {
           categories={items}
           onImport={handleSmartImport}
         />
+
+{/* AI Template Generator Widget */}
 
 
       </div>
@@ -1545,6 +1577,26 @@ export default function BudgetApp() {
           </div>
         </div>
       )}
+
+{/* generate template modal */}
+{showTemplateGenerator && (
+  <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-md p-4 animate-in fade-in duration-300">
+    <div className="w-full max-w-lg relative">
+      <button 
+        onClick={() => setShowTemplateGenerator(false)}
+        className="absolute -top-12 right-0 text-white/70 hover:text-white text-2xl transition-colors"
+      >
+        ✕
+      </button>
+
+      <TemplateGenerator 
+        netIncome={effectiveBudgetIncome}
+        onApply={applyAiTemplate}
+        onClose={() => setShowTemplateGenerator(false)}
+      />
+    </div>
+  </div>
+)}
 
     </div>
   );

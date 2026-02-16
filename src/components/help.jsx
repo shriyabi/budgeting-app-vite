@@ -4,11 +4,11 @@ export default function HelpWidget({ isOpen, onClose }) {
     const [activeTab, setActiveTab] = useState('setup');
 
     const tabs = [
-        { id: 'setup', label: 'Sheet Setup', icon: '📋' },
-        { id: 'workflow', label: 'Workflow', icon: '🚀' },
-        { id: 'recurring', label: 'Recurring Expenses', icon: '🔄' },
-        { id: 'transfer', label: 'Moving Money', icon: '💸' },
-        { id: 'colors', label: 'Color Guide', icon: '🎨' },
+        { id: 'setup', label: 'Sheet Setup', icon: '' },
+        { id: 'workflow', label: 'Workflow', icon: '' },
+        { id: 'recurring', label: 'Recurring Expenses', icon: '' },
+        { id: 'transfer', label: 'Moving Money', icon: '' },
+        { id: 'colors', label: 'Color Guide', icon: '' },
     ];
 
     if (!isOpen) return null;

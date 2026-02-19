@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 
-const BACKEND_URL = "http://127.0.0.1:8000"; 
-//const BACKEND_URL = "https://budgeting-app-vite.onrender.com"; 
+//const BACKEND_URL = "http://127.0.0.1:8000"; 
+const BACKEND_URL = "https://budgeting-app-vite.onrender.com"; 
 
 const TemplateGenerator = ({ netIncome, budgetDuration, targetDate, onApply, onClose }) => {
   const [formData, setFormData] = useState({
@@ -16,23 +16,23 @@ const TemplateGenerator = ({ netIncome, budgetDuration, targetDate, onApply, onC
   const getLifestyleLabel = (val) => {
     if (val <= 15) return { 
       label: "Extremely Frugal", 
-      prompt: "extremely frugal, prioritizing maximum savings above all else" 
+      sitution: "extremely frugal, prioritizing maximum savings above all else" 
     };
     if (val <= 35) return { 
       label: "Frugal leaning Balanced", 
-      prompt: "mostly frugal but allowing for essential comforts" 
+      sitution: "mostly frugal but allowing for essential comforts" 
     };
     if (val <= 65) return { 
       label: "Balanced", 
-      prompt: "a balanced lifestyle with a 50/30/20 split between needs, wants, and savings" 
+      situation: "a balanced lifestyle with a 50/30/20 split between needs, wants, and savings" 
     };
     if (val <= 85) return { 
       label: "Balanced leaning Lavish", 
-      prompt: "balanced but with a higher allocation for high-quality experiences and discretionary spending" 
+      situation: "balanced but with a higher allocation for high-quality experiences and discretionary spending" 
     };
     return { 
       label: "Lavish", 
-      prompt: "lavish, prioritizing lifestyle, convenience, and luxury spending" 
+      situation: "lavish, prioritizing lifestyle, convenience, and luxury spending" 
     };
   };
 
@@ -52,7 +52,7 @@ const TemplateGenerator = ({ netIncome, budgetDuration, targetDate, onApply, onC
       Total income for this period: $${netIncome}.
       My specific financial goals are: ${formData.financialGoals}. 
       My must have expenses are: ${formData.mustHaveExpenses}. 
-      My spending lifestyle is ${lifestyle.prompt}.
+      My spending lifestyle is ${lifestyle.situation}.
     `;
 
     try {
@@ -60,7 +60,7 @@ const TemplateGenerator = ({ netIncome, budgetDuration, targetDate, onApply, onC
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
-          prompt: constructedPrompt, 
+          situation: constructedPrompt, 
           net_income: Number(netIncome) 
         })
       });

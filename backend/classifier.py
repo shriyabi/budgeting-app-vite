@@ -64,13 +64,14 @@ class GenTemplateRequest(BaseModel):
     
 @app.post("/generate-template")
 async def generate_template(request: GenTemplateRequest):
+    print(request.situation); 
     system_prompt = f"""
     Generate a monthly budget template based on the user's life situation.
     User Income: ${request.net_income}
     User Situation: {request.situation}
 
     RULES:
-    1. Categories must be broad (e.g., 'HOUSING', 'TRANSPORTATION', 'GROCERIES', 'SAVINGS').
+    1. You must come up with the categories depending on user's mandatory expenses and spending goals. 
     2. The total sum of amounts MUST equal ${request.net_income}.
     3. Return ONLY a valid JSON object.
     

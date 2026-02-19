@@ -143,6 +143,28 @@ const BudgetEngine = {
   }
 };
 
+function getEstimatedLocalTax(zipCode) {
+  const zip = parseInt(zipCode, 10);
+  if (isNaN(zip)) return 0;
+
+  //new york
+  if (
+    (zip >= 10001 && zip <= 10282) || (zip >= 10301 && zip <= 10314) ||
+    (zip >= 10451 && zip <= 10475) || (zip >= 11004 && zip <= 11109) ||
+    (zip >= 11201 && zip <= 11256) || (zip >= 11351 && zip <= 11697)
+  ) return 3.8;
+
+  //maryland
+  if (zip >= 20601 && zip <= 21930) return 3.0;
+
+  //indiana
+  if (zip >= 46001 && zip <= 47997) return 1.5;
+
+  //michigan
+  if (zip >= 48201 && zip <= 48288) return 2.4;
+
+  return 0;
+}
 
 export default function BudgetApp() {
   const [user, setUser] = useState(null);
@@ -177,10 +199,37 @@ export default function BudgetApp() {
   const [isStealthMode, setIsStealthMode] = useState(false); 
   const sensitiveDataClass = isStealthMode ? "blur-md select-none transition-all duration-300" : "transition-all duration-300";
   const [showTemplateGenerator, setShowTemplateGenerator] = useState(false);
-
-
+  const [applyLocalTax, setApplyLocalTax] = useState(false);
+  const [zipCode, setZipCode] = useState("");
+  const [localTaxRate, setLocalTaxRate] = useState(0);
+  const [savedStatus, setSavedStatus] = useState(''); 
   // Budget calcutations 
   // 1. calc net income (defualt: annual)
+  // const netAnnualIncome = useMemo(() => {
+  //   let grossSalary = Number(salary);
+
+  //   if (salaryFrequency === 'Monthly') grossSalary *= 12;
+  //   else if (salaryFrequency === 'Bi-Weekly') grossSalary *= 26;
+  //   else if (salaryFrequency === 'Weekly') grossSalary *= 52;
+
+  //   const grossAnnual = grossSalary + Number(bonus);
+  //   const taxableIncome = Math.max(0, grossAnnual - STANDARD_DEDUCTION);
+
+  //   let federalTax = 0;
+  //   let previousLimit = 0;
+  //   for (let bracket of FEDERAL_TAX_BRACKETS) {
+  //     if (taxableIncome > previousLimit) {
+  //       const taxableAmountInBracket = Math.min(taxableIncome, bracket.limit) - previousLimit;
+  //       federalTax += taxableAmountInBracket * bracket.rate;
+  //       previousLimit = bracket.limit;
+  //     }
+  //   }
+  //   const totalTax = federalTax + (Math.min(grossAnnual, SOCIAL_SECURITY_CAP) * 0.062) + (grossAnnual * 0.0145) + (grossAnnual * (STATE_TAX_RATES[stateCode] || 0.00));
+
+  //   return Math.floor(grossAnnual - totalTax);
+  // }, [salary, bonus, stateCode, salaryFrequency]);
+
+  // 1. calc net income (default: annual)
   const netAnnualIncome = useMemo(() => {
     let grossSalary = Number(salary);
 
@@ -200,10 +249,17 @@ export default function BudgetApp() {
         previousLimit = bracket.limit;
       }
     }
-    const totalTax = federalTax + (Math.min(grossAnnual, SOCIAL_SECURITY_CAP) * 0.062) + (grossAnnual * 0.0145) + (grossAnnual * (STATE_TAX_RATES[stateCode] || 0.00));
+
+    const localTaxAmount = applyLocalTax ? grossAnnual * (localTaxRate / 100) : 0;
+
+    const totalTax = federalTax + 
+      (Math.min(grossAnnual, SOCIAL_SECURITY_CAP) * 0.062) + 
+      (grossAnnual * 0.0145) + 
+      (grossAnnual * (STATE_TAX_RATES[stateCode] || 0.00)) + 
+      localTaxAmount;
 
     return Math.floor(grossAnnual - totalTax);
-  }, [salary, bonus, stateCode, salaryFrequency]);
+  }, [salary, bonus, stateCode, salaryFrequency, applyLocalTax, localTaxRate]); // Added dependencies
 
   const effectiveBudgetIncome = useMemo(() => {
     return Math.floor(BudgetEngine.calculateBudgetIncome(
@@ -312,6 +368,8 @@ export default function BudgetApp() {
 
       }
 
+      console.log("371", items); 
+
       // sync from spreadsheet to ui
       if (json.savedData) {
         console.log(json.savedData)
@@ -330,8 +388,8 @@ export default function BudgetApp() {
   const saveBudget = async () => {
     const realId = getSpreadsheetId(spreadsheetInput);
     const shouldSyncDesign = window.confirm("Do you want to apply your category colors to the Google Sheet?");
-    setSpreadsheetStatus("⏳ Saving...");
-
+    //setSpreadsheetStatus("⏳ Saving...");
+    setSavedStatus("⏳ Saving..."); 
     const budgetInfo = BudgetEngine.calculateBudgetIncome(netAnnualIncome, payFrequency, budgetDuration, targetDate);
 
     try {
@@ -351,6 +409,8 @@ export default function BudgetApp() {
           //intgerate spending gtracking
           items: items.map(item => {
             const hasRecurrence = item.recurrenceFreq && item.recurrenceFreq.trim() !== "";
+            console.log("410", item); 
+            console.log("411", typeof item.amount); 
             return {
               category: item.category,
               amount: item.amount,
@@ -365,7 +425,8 @@ export default function BudgetApp() {
           syncDesign: shouldSyncDesign
         })
       });
-      setSpreadsheetStatus("✅ Saved!");
+      //setSpreadsheetStatus("✅ Saved!");
+      setSavedStatus("✅ Saved!"); 
     } catch (e) { setSpreadsheetStatus(`Error: ${e.message}`); }
   };
 
@@ -579,6 +640,8 @@ export default function BudgetApp() {
 
   // process slice overlay for budget pie chart (shows fraction spent of each budget in the chart)
   const renderProgressSlice = (props) => {
+    console.log("642", items); 
+    console.log("642", props); 
     const {
       cx, cy, innerRadius, outerRadius, startAngle, endAngle, fill, payload
     } = props;
@@ -635,7 +698,7 @@ const applyAiTemplate = (template) => {
   const newItems = Object.entries(template).map(([name, val], idx) => ({
     id: `ai-gen-${Date.now()}-${idx}`,
     category: name.toUpperCase(),
-    amount: Number(val),
+    amount: Number(val), //may have to change
     spent: 0,
     isActive: true,
     color: TAILWIND_COLORS[idx % TAILWIND_COLORS.length]
@@ -643,6 +706,20 @@ const applyAiTemplate = (template) => {
   setItems(newItems);
   setShowTemplateGenerator(false);
 };
+
+//local income tax calculator
+const handleZipChange = (e) => {
+    const val = e.target.value.replace(/\D/,''); // Only numbers
+    setZipCode(val);
+    
+    // Only calculate if we have a full 5-digit zip
+    if (val.length === 5) {
+      setLocalTaxRate(getEstimatedLocalTax(val));
+    } else {
+      setLocalTaxRate(0);
+    }
+  };
+
 
   return (
     <div className='w-full overflow-x-hidden bg-linear-to-br from-[#fdfbf7] to-[#ecfdf5] dark:from-gray-950 dark:to-[#02261d] h-auto'>
@@ -808,119 +885,159 @@ const applyAiTemplate = (template) => {
         </div>
 
         {/* Salary/Tax Calculator */}
+        <div className="bg-linear-to-br from-[#1a4731] via-[#0f5132] to-[#064e3b] p-8 rounded-3xl shadow-xl shadow-[#064e3b]/20 mb-10 text-white relative overflow-hidden border-2 border-[#4ade80]/20 transition-all duration-300">
 
-<div className="bg-linear-to-br from-[#1a4731] via-[#0f5132] to-[#064e3b] p-8 rounded-3xl shadow-xl shadow-[#064e3b]/20 mb-10 text-white relative overflow-hidden border-2 border-[#4ade80]/20 transition-all duration-300">
+          {/* Background Effects */}
+          <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-white/5 via-transparent to-transparent -mr-32 -mt-32 pointer-events-none opacity-50 blur-2xl"></div>
+          <div className="absolute bottom-0 left-0 w-[300px] h-[300px] bg-emerald-400/10 rounded-full blur-3xl -ml-20 -mb-20 pointer-events-none"></div>
 
-  {/* Background Effects */}
-  <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-white/5 via-transparent to-transparent -mr-32 -mt-32 pointer-events-none opacity-50 blur-2xl"></div>
-  <div className="absolute bottom-0 left-0 w-[300px] h-[300px] bg-emerald-400/10 rounded-full blur-3xl -ml-20 -mb-20 pointer-events-none"></div>
+          <div className="flex flex-wrap gap-8 items-end relative z-10">
 
-  <div className="flex flex-wrap gap-8 items-end relative z-10">
+            {/* Base Salary */}
+            <div>
+              <label className="text-[10px] text-[#86efac] font-bold uppercase tracking-widest mb-2 block font-mono opacity-80">
+                Base Salary
+              </label>
+              <div className="flex items-center gap-2">
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-emerald-500 font-bold">$</span>
+                  <input
+                    type="number"
+                    className={`pl-6 p-3 rounded-xl bg-[#022c22]/60 border border-[#34d399]/30 w-32 md:w-36 text-white font-mono text-lg focus:outline-none focus:ring-2 focus:ring-[#4ade80] shadow-inner transition-all duration-300 ${sensitiveDataClass}`}
+                    value={salary}
+                    onChange={e => setSalary(e.target.value)}
+                  />
+                </div>
+                <select
+                  value={salaryFrequency}
+                  onChange={(e) => setSalaryFrequency(e.target.value)}
+                  className="p-3 rounded-xl bg-black/10 border border-emerald-500/10 text-emerald-100/70 font-mono text-xs font-bold uppercase focus:outline-none focus:bg-black/20 focus:text-emerald-100 [&>option]:text-black cursor-pointer hover:bg-black/20 transition-all"
+                >
+                  <option value="Annual">/ Year</option>
+                  <option value="Monthly">/ Mo</option>
+                  <option value="Bi-Weekly">/ 2 Wk</option>
+                  <option value="Weekly">/ Wk</option>
+                </select>
+              </div>
+            </div>
 
-    {/* input fields */}
-    <div>
-      <label className="text-[10px] text-[#86efac] font-bold uppercase tracking-widest mb-2 block font-mono opacity-80">
-        Base Salary
-      </label>
-      <div className="flex items-center gap-2">
-        {/* Amount Input */}
-        <div className="relative">
-          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-emerald-500 font-bold">$</span>
-          <input
-            type="number"
-            className={`pl-6 p-3 rounded-xl bg-[#022c22]/60 border border-[#34d399]/30 w-32 md:w-36 text-white font-mono text-lg focus:outline-none focus:ring-2 focus:ring-[#4ade80] shadow-inner transition-all duration-300
-              ${sensitiveDataClass} 
-            `}
-            value={salary}
-            onChange={e => setSalary(e.target.value)}
-          />
+            {/* Bonus */}
+            <div>
+              <label className="text-[10px] text-[#86efac] font-bold uppercase tracking-widest mb-2 block font-mono opacity-80">
+                Bonus
+              </label>
+              <div className="relative">
+                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-emerald-500 font-bold">$</span>
+                <input
+                  type="number"
+                  className={`pl-8 p-3 rounded-xl bg-[#022c22]/60 border border-[#34d399]/30 w-36 focus:outline-none focus:ring-2 focus:ring-[#4ade80] text-white font-mono text-lg shadow-inner transition-all duration-300 ${sensitiveDataClass}`}
+                  value={bonus}
+                  onChange={e => setBonus(e.target.value)}
+                />
+              </div>
+            </div>
+
+            {/* State Tax */}
+            <div>
+              <label className="text-[10px] text-[#86efac] font-bold uppercase tracking-widest mb-2 block font-mono opacity-80">
+                State Tax
+              </label>
+              <select
+                className={`p-4 rounded-xl bg-[#022c22]/60 border border-[#34d399]/30 w-28 focus:outline-none focus:ring-2 focus:ring-[#4ade80] text-white font-mono text-lg [&>option]:text-black cursor-pointer ${sensitiveDataClass}`}
+                value={stateCode}
+                onChange={e => setStateCode(e.target.value)}
+              >
+                {Object.keys(STATE_TAX_RATES).map(s => <option key={s}>{s}</option>)}
+              </select>
+            </div>
+
+            {/* Local income tax factorization */}
+            <div className="flex flex-col justify-end h-full">
+              <div className="flex items-center gap-2 mb-3 cursor-pointer group" onClick={() => setApplyLocalTax(!applyLocalTax)}>
+                {/* check for local tax  */}
+                <div className={`w-5 h-5 rounded border flex items-center justify-center transition-all ${applyLocalTax ? 'bg-emerald-500 border-emerald-500' : 'border-[#34d399]/50 hover:border-emerald-400'}`}>
+                  {applyLocalTax && <svg className="w-3.5 h-3.5 text-[#022c22]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="3"><path d="M5 13l4 4L19 7" /></svg>}
+                </div>
+                
+                <div className="flex items-center gap-1.5">
+                  <label className="text-[10px] text-[#86efac] font-bold uppercase tracking-widest font-mono opacity-80 cursor-pointer group-hover:text-white transition-colors select-none">
+                    Local Tax
+                  </label>
+                  
+                  {/* loacl tax zip code info */}
+                  <div className="group/tooltip relative">
+                     <div className="w-4 h-4 rounded-full border border-emerald-500/30 text-emerald-500/50 flex items-center justify-center text-[9px] font-mono cursor-help hover:bg-emerald-500/20 hover:text-emerald-300 hover:border-emerald-400 transition-all">?</div>
+                     <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-48 bg-[#022c22] border border-[#34d399]/20 text-emerald-100 text-[10px] p-2 rounded-lg opacity-0 group-hover/tooltip:opacity-100 pointer-events-none transition-all shadow-xl z-50">
+                       Check this if you live in a city with extra income tax (e.g. NYC, Yonkers, MD counties).
+                     </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* zip code input */}
+              <div className={`transition-all duration-300 overflow-hidden ${applyLocalTax ? 'max-h-20 opacity-100' : 'max-h-0 opacity-0'}`}>
+                <div className="relative">
+                  <input 
+                    type="text" 
+                    maxLength="5" 
+                    placeholder="Zip Code"
+                    value={zipCode}
+                    onChange={handleZipChange}
+                    className={`p-3 rounded-xl bg-[#022c22]/60 border border-[#34d399]/30 w-32 text-white font-mono text-lg focus:outline-none focus:ring-2 focus:ring-[#4ade80] placeholder-emerald-800/50 shadow-inner transition-all duration-300 ${sensitiveDataClass}`}
+                  />
+                  <div className="absolute -bottom-5 left-1 text-[9px] font-mono whitespace-nowrap text-emerald-400/80">
+                     {localTaxRate > 0 ? `Rate: ${localTaxRate}%` : zipCode.length === 5 ? "No local tax" : ""}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="ml-auto flex items-end gap-4">
+              <button
+                onClick={() => setIsStealthMode(!isStealthMode)}
+                className="mb-1 p-2 rounded-full bg-black/20 text-emerald-300 hover:bg-black/40 hover:text-white transition-all border border-transparent hover:border-emerald-500/30 group"
+                title={isStealthMode ? "Reveal Values" : "Stealth Mode"}
+              >
+                {isStealthMode ? (
+                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9.88 9.88a3 3 0 1 0 4.24 4.24" /><path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68" /><path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61" /><line x1="2" x2="22" y1="2" y2="22" /></svg>
+                ) : (
+                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" /><circle cx="12" cy="12" r="3" /></svg>
+                )}
+              </button>
+
+              <div className="text-right">
+                <div className="text-[10px] text-[#86efac] font-bold uppercase tracking-widest mb-2 opacity-80 font-mono flex items-center justify-end gap-1">
+                  {budgetDuration} Net Income
+                </div>
+                <div className={`text-5xl font-extrabold text-transparent bg-clip-text bg-linear-to-b from-white to-[#86efac] drop-shadow-sm tracking-tight font-sans transition-all duration-500
+                   ${sensitiveDataClass}
+                `}>
+                  ${effectiveBudgetIncome.toLocaleString()}
+                </div>
+                 
+                 {applyLocalTax && localTaxRate > 0 && (
+                    <div className="text-[9px] text-emerald-400/60 font-mono mt-1 text-right">
+                      - incl. {localTaxRate}% local tax
+                    </div>
+                 )}
+              </div>
+            </div>
+          </div>
+
+          {/* progress bar on net income used */}
+          <div className="mt-8 relative z-10">
+            <div className="flex justify-between text-[10px] font-bold uppercase tracking-widest mb-2 text-[#86efac] font-mono">
+              <span>Funds Utilized</span>
+              <span>{isNaN(progressPercent) ? 0 : Math.round(progressPercent)}%</span>
+            </div>
+            <div className="h-4 bg-[#022c22]/50 rounded-full overflow-hidden border border-[#34d399]/20 p-[2px]">
+              <div
+                className={`h-full rounded-full transition-all duration-1000 shadow-[0_0_10px_rgba(74,222,128,0.3)] ${progressPercent > 100 ? 'bg-rose-500' : 'bg-linear-to-r from-[#15803d] via-[#22c55e] to-[#86efac]'}`}
+                style={{ width: `${isNaN(progressPercent) ? 0 : Math.min(progressPercent, 100)}%` }}
+              ></div>
+            </div>
+          </div>
         </div>
-
-        {/* Frequency Dropdown */}
-        <select
-          value={salaryFrequency}
-          onChange={(e) => setSalaryFrequency(e.target.value)}
-          className="p-3 rounded-xl bg-black/10 border border-emerald-500/10 text-emerald-100/70 font-mono text-xs font-bold uppercase focus:outline-none focus:bg-black/20 focus:text-emerald-100 [&>option]:text-black cursor-pointer hover:bg-black/20 transition-all"
-        >
-          <option value="Annual">/ Year</option>
-          <option value="Monthly">/ Mo</option>
-          <option value="Bi-Weekly">/ 2 Wk</option>
-          <option value="Weekly">/ Wk</option>
-        </select>
-      </div>
-    </div>
-
-    <div>
-      <label className="text-[10px] text-[#86efac] font-bold uppercase tracking-widest mb-2 block font-mono opacity-80">
-        Bonus
-      </label>
-      <div className="relative">
-        <span className="absolute left-4 top-1/2 -translate-y-1/2 text-emerald-500 font-bold">$</span>
-        <input
-          type="number"
-          className={`pl-8 p-3 rounded-xl bg-[#022c22]/60 border border-[#34d399]/30 w-36 focus:outline-none focus:ring-2 focus:ring-[#4ade80] text-white font-mono text-lg shadow-inner transition-all duration-300
-             ${sensitiveDataClass}
-          `}
-          value={bonus}
-          onChange={e => setBonus(e.target.value)}
-        />
-      </div>
-    </div>
-
-    <div>
-      <label className="text-[10px] text-[#86efac] font-bold uppercase tracking-widest mb-2 block font-mono opacity-80">
-        State Tax
-      </label>
-      <select
-        className={`p-4 rounded-xl bg-[#022c22]/60 border border-[#34d399]/30 w-28 focus:outline-none focus:ring-2 focus:ring-[#4ade80] text-white font-mono text-lg [&>option]:text-black cursor-pointer ${sensitiveDataClass}`}
-        value={stateCode}
-        onChange={e => setStateCode(e.target.value)}
-      >
-        {Object.keys(STATE_TAX_RATES).map(s => <option key={s}>{s}</option>)}
-      </select>
-    </div>
-
-    <div className="ml-auto flex items-end gap-4">
-      <button
-        onClick={() => setIsStealthMode(!isStealthMode)}
-        className="mb-1 p-2 rounded-full bg-black/20 text-emerald-300 hover:bg-black/40 hover:text-white transition-all border border-transparent hover:border-emerald-500/30 group"
-        title={isStealthMode ? "Reveal Values" : "Stealth Mode"}
-      >
-        {isStealthMode ? (
-          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9.88 9.88a3 3 0 1 0 4.24 4.24" /><path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68" /><path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61" /><line x1="2" x2="22" y1="2" y2="22" /></svg>
-        ) : (
-          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" /><circle cx="12" cy="12" r="3" /></svg>
-        )}
-      </button>
-
-      <div className="text-right">
-        <div className="text-[10px] text-[#86efac] font-bold uppercase tracking-widest mb-2 opacity-80 font-mono flex items-center justify-end gap-1">
-          {budgetDuration} Net Income
-        </div>
-        <div className={`text-5xl font-extrabold text-transparent bg-clip-text bg-linear-to-b from-white to-[#86efac] drop-shadow-sm tracking-tight font-sans transition-all duration-500
-           ${sensitiveDataClass}
-        `}>
-          ${effectiveBudgetIncome.toLocaleString()}
-        </div>
-      </div>
-
-    </div>
-  </div>
-
-  {/* progress bar on net income used */}
-  <div className="mt-8 relative z-10">
-    <div className="flex justify-between text-[10px] font-bold uppercase tracking-widest mb-2 text-[#86efac] font-mono">
-      <span>Funds Utilized</span>
-      <span>{isNaN(progressPercent) ? 0 : Math.round(progressPercent)}%</span>
-    </div>
-    <div className="h-4 bg-[#022c22]/50 rounded-full overflow-hidden border border-[#34d399]/20 p-[2px]">
-      <div
-        className={`h-full rounded-full transition-all duration-1000 shadow-[0_0_10px_rgba(74,222,128,0.3)] ${progressPercent > 100 ? 'bg-rose-500' : 'bg-linear-to-r from-[#15803d] via-[#22c55e] to-[#86efac]'}`}
-        style={{ width: `${isNaN(progressPercent) ? 0 : Math.min(progressPercent, 100)}%` }}
-      ></div>
-    </div>
-  </div>
-</div>
 
 
         <DragDropContext onDragEnd={onDragEnd}>
@@ -1274,9 +1391,10 @@ const applyAiTemplate = (template) => {
                   <div className="w-full font-mono uppercase mb-4 h-[400px] lg:h-auto lg:flex-1 min-h-[300px] relative">
                     <div className="absolute inset-0 z-10">
                       <ResponsiveContainer width="100%" height="100%">
+                        {console.log("1394", items)}
                         <PieChart>
                           <Pie
-                            data={items.filter(i => i.isActive !== false)}
+                            data={items.map(i => ({ ...i, amount: Number(i.amount) || 0 }))}
                             dataKey="amount"
                             nameKey="category"
                             innerRadius="60%"
@@ -1289,7 +1407,7 @@ const applyAiTemplate = (template) => {
                                 key={entry.id || `cell-${index}`}
                                 fill={entry.color || TAILWIND_COLORS[index % TAILWIND_COLORS.length]}
                                 stroke="none"
-                              />
+                              /> 
                             ))}
                           </Pie>
                           <Tooltip
@@ -1321,7 +1439,7 @@ const applyAiTemplate = (template) => {
                       <ResponsiveContainer width="100%" height="100%">
                         <PieChart>
                           <Pie
-                            data={items.filter(i => i.isActive !== false)}
+                            data={items.map(i => ({ ...i, amount: Number(i.amount) || 0 }))}
                             dataKey="amount"
                             nameKey="category"
                             innerRadius="60%"
@@ -1396,6 +1514,10 @@ const applyAiTemplate = (template) => {
                 >
                   <span>Save Changes</span>
                 </button>
+
+                <div className="w-full text-center mt-4 font-bold text-emerald-600 dark:text-emerald-400 text-sm uppercase h-4">
+            {savedStatus}
+          </div>
               </div>
             </div>
 

@@ -9,7 +9,7 @@ import Calculator from './components/calculator';
 import HelpWidget from './components/help';
 import SpendingTracker from './components/spending_tracker';
 import TemplateGenerator from './components/template_generator';
-
+import SpendingAnalyzer from './components/spending_analysis_tool'; 
 
 const API_URL = import.meta.env.VITE_APP_SCRIPT_URL;
 
@@ -203,32 +203,9 @@ export default function BudgetApp() {
   const [zipCode, setZipCode] = useState("");
   const [localTaxRate, setLocalTaxRate] = useState(0);
   const [savedStatus, setSavedStatus] = useState(''); 
+  const [showAnalysisWidget, setShowAnalysisWidget] = useState(false);
+  
   // Budget calcutations 
-  // 1. calc net income (defualt: annual)
-  // const netAnnualIncome = useMemo(() => {
-  //   let grossSalary = Number(salary);
-
-  //   if (salaryFrequency === 'Monthly') grossSalary *= 12;
-  //   else if (salaryFrequency === 'Bi-Weekly') grossSalary *= 26;
-  //   else if (salaryFrequency === 'Weekly') grossSalary *= 52;
-
-  //   const grossAnnual = grossSalary + Number(bonus);
-  //   const taxableIncome = Math.max(0, grossAnnual - STANDARD_DEDUCTION);
-
-  //   let federalTax = 0;
-  //   let previousLimit = 0;
-  //   for (let bracket of FEDERAL_TAX_BRACKETS) {
-  //     if (taxableIncome > previousLimit) {
-  //       const taxableAmountInBracket = Math.min(taxableIncome, bracket.limit) - previousLimit;
-  //       federalTax += taxableAmountInBracket * bracket.rate;
-  //       previousLimit = bracket.limit;
-  //     }
-  //   }
-  //   const totalTax = federalTax + (Math.min(grossAnnual, SOCIAL_SECURITY_CAP) * 0.062) + (grossAnnual * 0.0145) + (grossAnnual * (STATE_TAX_RATES[stateCode] || 0.00));
-
-  //   return Math.floor(grossAnnual - totalTax);
-  // }, [salary, bonus, stateCode, salaryFrequency]);
-
   // 1. calc net income (default: annual)
   const netAnnualIncome = useMemo(() => {
     let grossSalary = Number(salary);
@@ -1585,8 +1562,7 @@ const handleZipChange = (e) => {
                 {/* 4. Template Generator */}
           <button
   onClick={() => setShowTemplateGenerator(true)}
-  className="group relative w-12 h-12 rounded-full flex items-center justify-center bg-emerald-500 text-white shadow-lg shadow-emerald-500/30 hover:bg-emerald-600 hover:scale-105 transition-all duration-200"
->
+  className="group relative w-12 h-12 rounded-full flex items-center justify-center bg-emerald-500 text-white shadow-lg shadow-emerald-500/30 hover:bg-emerald-600 hover:scale-105 transition-all duration-200">
   <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
     <path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z" />
     <path d="M5 3v4" /><path d="M19 17v4" /><path d="M3 5h4" /><path d="M17 19h4" />
@@ -1597,7 +1573,22 @@ const handleZipChange = (e) => {
   </span>
 </button>
 
-          {/* 5. Help */}
+{/* 5. AI Spending Analyst */}
+          <button
+            onClick={() => setShowAnalysisWidget(true)}
+            className="group relative w-12 h-12 rounded-full flex items-center justify-center bg-emerald-500 text-white shadow-lg shadow-emerald-500/30 hover:bg-emerald-600 hover:scale-105 transition-all duration-200"
+            title="Spending Analyst"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M8 13h2"/><path d="M8 17h2"/><path d="M14 13h2"/><path d="M14 17h2"/>
+            </svg>
+            
+            <span className="absolute -top-10 scale-0 group-hover:scale-100 transition-transform bg-gray-900 text-white text-[10px] px-2 py-1 rounded-md font-bold uppercase tracking-wider whitespace-nowrap">
+              AI Analyst
+            </span>
+          </button>
+
+          {/* 6. Help */}
           <button
             onClick={() => setIsHelpOpen(!isHelpOpen)}
             className="group relative w-12 h-12 rounded-full flex items-center justify-center text-gray-400 hover:text-red-600 dark:hover:text-gray-300 transition-all duration-200"
@@ -1722,6 +1713,27 @@ const handleZipChange = (e) => {
   </div>
 )}
 
+{showAnalysisWidget && (
+
+  <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-md p-4 animate-in fade-in duration-300">
+    <div className="w-full max-w-lg relative">
+      <button 
+        onClick={() => setShowTemplateGenerator(false)}
+        className="absolute -top-12 right-0 text-white/70 hover:text-white text-2xl transition-colors"
+      >
+        ✕
+      </button>
+
+      <SpendingAnalyzer 
+          isOpen={showAnalysisWidget}
+          onClose={() => setShowAnalysisWidget(false)}
+          currentItems={items} // Pass the budget items!
+          netIncome={effectiveBudgetIncome}
+        />
+
+    </div>
+  </div>
+)} 
     </div>
   );
 }

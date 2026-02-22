@@ -9,8 +9,7 @@ export default function HelpWidget({ isOpen, onClose }) {
         { id: 'recurring', label: 'Recurring'},
         { id: 'transfer', label: 'Moving Money'},
         { id: 'colors', label: 'Color Guide' },
-        { id: 'ai_template', label: 'AI Templates'},
-        { id: 'ai_analyst', label: 'AI Analyst' },
+        { id: 'widgets', label: 'Widgets' },
     ];
 
     if (!isOpen) return null;
@@ -330,55 +329,63 @@ export default function HelpWidget({ isOpen, onClose }) {
                         </div>
                     )}
 
-                    {/* tab 6: AI Templates */}
-                    {activeTab === 'ai_template' && (
+                    {/* tab 6: Widgets Integration */}
+                    {activeTab === 'widgets' && (
                         <div className="space-y-6 animate-in fade-in">
                             <div className="text-center mb-6">
-                                <h3 className="text-xl font-bold font-serif mb-2">AI Budget Generator</h3>
-                                <p className="text-sm text-gray-500">Let AI build your baseline budget instantly.</p>
-                            </div>
-                            
-                            <div className="bg-emerald-50 dark:bg-emerald-900/20 p-5 rounded-2xl border border-emerald-100 dark:border-emerald-800">
-                                <h4 className="font-bold text-emerald-900 dark:text-emerald-100 mb-3 uppercase tracking-wide text-xs">How to use it:</h4>
-                                <ol className="list-decimal pl-5 space-y-3 text-sm text-emerald-800 dark:text-emerald-200 font-medium">
-                                    <li>Click the <b>&#10024;  (Budget Template Generator) </b> widget at the bottom of the screen.</li>
-                                    <li>The AI automatically reads your calculated Net Income and chosen Budget Duration.</li>
-                                    <li>Type in your specific financial goals (e.g., <i>"I want to save for a wedding"</i> or <i>"Aggressive student loan payoff"</i>).</li>
-                                    <li>Click <b>Generate</b>. The AI will formulate a customized category split using established financial models (like the 50/30/20 rule).</li>
-                                    <li>Review the template, and click <b>Apply</b> to automatically load those buckets into your dashboard!</li>
-                                </ol>
-                            </div>
-                        </div>
-                    )}
-
-                    {/* tab 7: AI Analyst */}
-                    {activeTab === 'ai_analyst' && (
-                        <div className="space-y-6 animate-in fade-in">
-                            <div className="text-center mb-6">
-                                <h3 className="text-xl font-bold font-serif mb-2">AI Spending Analyst</h3>
-                                <p className="text-sm text-gray-500">Analyze raw bank statements and optimize your spending.</p>
+                                <h3 className="text-xl font-bold font-serif mb-2">App Widgets</h3>
+                                <p className="text-sm text-gray-500">Powerful tools accessible from the bottom right menu.</p>
                             </div>
 
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <div className="bg-blue-50 dark:bg-blue-900/20 p-5 rounded-2xl border border-blue-100 dark:border-blue-800">
-                                    <h4 className="font-bold text-blue-900 dark:text-blue-100 mb-2 uppercase tracking-wide text-xs"> Deep Analysis</h4>
-                                    <p className="text-xs md:text-sm text-blue-800 dark:text-blue-200 leading-relaxed">
-                                        Paste your raw bank statement text directly into the widget. The AI will instantly categorize your transactions, compare them against your <b>currently active budget</b>, and provide a structured feedback report highlighting overspending.
+                                {/* AI Analyst */}
+                                <div className="bg-blue-50 dark:bg-blue-900/20 p-5 rounded-2xl border border-blue-100 dark:border-blue-800 flex flex-col h-full">
+                                    <h4 className="font-bold text-blue-900 dark:text-blue-100 mb-2 uppercase tracking-wide text-xs flex items-center gap-2">
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 3v18h18" /><path d="M3 15l5-5 4 4 6-6" /><path d="M16 3l1 2.5L19.5 6.5 17 7.5 16 10l-1-2.5L12.5 6.5 15 5.5z" /></svg>
+                                        AI Analyst
+                                    </h4>
+                                    <p className="text-xs text-blue-800 dark:text-blue-200 leading-relaxed mb-3 flex-1">
+                                        Paste raw bank statements. The AI categorizes transactions, compares them against your active budget, and builds an optimized budget based on actual spending.
                                     </p>
+                                    <span className="text-[10px] bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 px-2 py-1 rounded w-fit uppercase font-bold tracking-wider">Features Email Export</span>
                                 </div>
-                                <div className="bg-purple-50 dark:bg-purple-900/20 p-5 rounded-2xl border border-purple-100 dark:border-purple-800">
-                                    <h4 className="font-bold text-purple-900 dark:text-purple-100 mb-2 uppercase tracking-wide text-xs">Auto-Adjust</h4>
-                                    <p className="text-xs md:text-sm text-purple-800 dark:text-purple-200 leading-relaxed">
-                                        Along with the feedback report, the AI generates a new, recommended budget split based on your actual, real-world spending habits. Click <b>"Apply Optimized Budget"</b> to instantly update your buckets!
-                                    </p>
-                                </div>
-                            </div>
 
-                            <div className="bg-gray-100 dark:bg-gray-700 p-4 rounded-xl text-xs md:text-sm flex items-start gap-3">
-                                <span className="text-xl">&#x2709;</span>
-                                <div>
-                                    <strong>Export your reports</strong> <br />
-                                    Use the <b>Email Analysis</b> button inside the widget to send the generated markdown report and optimized numbers directly to yourself or a partner for review.
+                                {/* Budget Generator */}
+                                <div className="bg-purple-50 dark:bg-purple-900/20 p-5 rounded-2xl border border-purple-100 dark:border-purple-800 flex flex-col h-full">
+                                    <h4 className="font-bold text-purple-900 dark:text-purple-100 mb-2 uppercase tracking-wide text-xs flex items-center gap-2">
+                                        &#10024; Budget Generator
+                                    </h4>
+                                    <p className="text-xs text-purple-800 dark:text-purple-200 leading-relaxed flex-1">
+                                        Starting fresh? Let AI instantly build a baseline budget template based on your net income and personal financial goals (e.g. "Save for a house").
+                                    </p>
+                                </div>
+
+                                {/* Spending Tracker */}
+                                <div className="bg-emerald-50 dark:bg-emerald-900/20 p-5 rounded-2xl border border-emerald-100 dark:border-emerald-800 flex flex-col h-full">
+                                    <h4 className="font-bold text-emerald-900 dark:text-emerald-100 mb-2 uppercase tracking-wide text-xs flex items-center gap-2">
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" x2="12" y1="2" y2="22" /><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" /></svg>
+                                        Spending Tracker
+                                    </h4>
+                                    <p className="text-xs text-emerald-800 dark:text-emerald-200 leading-relaxed flex-1">
+                                        Manually paste CSV or bank text to quickly update the "Actual Spent" amounts for your categories to track progress during the month.
+                                    </p>
+                                </div>
+
+                                {/* Basic Tools */}
+                                <div className="bg-gray-100 dark:bg-gray-700/50 p-5 rounded-2xl border border-gray-200 dark:border-gray-600 flex flex-col h-full">
+                                    <h4 className="font-bold text-gray-800 dark:text-gray-200 mb-3 uppercase tracking-wide text-xs flex items-center gap-2">
+                                        Quick Tools
+                                    </h4>
+                                    <div className="space-y-3">
+                                        <div>
+                                            <b className="text-xs text-gray-800 dark:text-gray-200">Scratchpad:</b>
+                                            <p className="text-xs text-gray-500 dark:text-gray-400">Jot down quick reminders or notes that save automatically.</p>
+                                        </div>
+                                        <div>
+                                            <b className="text-xs text-gray-800 dark:text-gray-200">Calculator:</b>
+                                            <p className="text-xs text-gray-500 dark:text-gray-400">Crunch numbers directly without opening another app.</p>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         </div>

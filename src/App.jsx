@@ -1576,9 +1576,22 @@ const handleZipChange = (e) => {
             className="group relative w-12 h-12 rounded-full flex items-center justify-center bg-emerald-500 text-white shadow-lg shadow-emerald-500/30 hover:bg-emerald-600 hover:scale-105 transition-all duration-200"
             title="Spending Analyst"
           >
-            <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M8 13h2"/><path d="M8 17h2"/><path d="M14 13h2"/><path d="M14 17h2"/>
-            </svg>
+            <svg 
+  xmlns="http://www.w3.org/2000/svg" 
+  width="22" 
+  height="22" 
+  viewBox="0 0 24 24" 
+  fill="none" 
+  stroke="currentColor" 
+  strokeWidth="2" 
+  strokeLinecap="round" 
+  strokeLinejoin="round"
+>
+  <path d="M3 3v18h18" />
+  <path d="M3 16l4-4 4 4 4-5" />
+  <path d="M19 5h-2a1.5 1.5 0 0 0 0 3h1.5a1.5 1.5 0 0 1 0 3H16" />
+  <path d="M17.5 3v10" />
+</svg>
             
             <span className="absolute -top-10 scale-0 group-hover:scale-100 transition-transform bg-gray-900 text-white text-[10px] px-2 py-1 rounded-md font-bold uppercase tracking-wider whitespace-nowrap">
               AI Analyst

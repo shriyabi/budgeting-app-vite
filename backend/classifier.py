@@ -161,9 +161,74 @@ class AnalyzeRequest(BaseModel):
 #         print(f"AI Analysis Error: {e}")
 #         raise HTTPException(status_code=500, detail=str(e))
 
+# @app.post("/analyze-spending")
+# async def analyze_spending(request: AnalyzeRequest):
+#     # 1. Format the budget context if it exists
+#     budget_context = ""
+#     if request.hasBudget and request.currentBudget:
+#         clean_budget = "\n".join([
+#             f"- {item.get('category', 'Unknown')}: ${item.get('amount', 0)}" 
+#             for item in request.currentBudget if item.get('isActive') is not False
+#         ])
+#         budget_context = f"""
+#         THE USER'S CURRENT BUDGET PLAN:
+#         {clean_budget}
+
+#         YOUR TASK: Compare their actual spending from the statements against this budget plan. 
+#         Identify specific categories where they are overspending or underspending.
+#         """
+#     else:
+#         budget_context = """
+#         THE USER HAS NO BUDGET PLAN.
+#         YOUR TASK: Categorize their spending from the raw statements and highlight their top 3 spending areas. 
+#         Suggest a baseline budget breakdown they should adopt to reach their goals.
+#         """
+
+#     # 2. Combine the statements
+#     statement_text = "\n---\n".join(request.statements)
+
+#     # 3. Construct the Master Prompt
+#     system_prompt = f"""
+#     You are an expert, empathetic financial advisor analyzing a client's bank statements.
+
+#     CLIENT PROFILE:
+#     - Net Income: ${request.income} per period.
+#     - Financial Goals: {request.goals}
+
+#     {budget_context}
+
+#     RAW BANK STATEMENTS:
+#     {statement_text}
+
+#     INSTRUCTIONS:
+#     Write a comprehensive analysis addressing the user directly ("You"). 
+#     Format the response using clean Markdown with headers (###), bullet points, and bold text for readability.
+#     Do not use generic fluff. Be highly specific using the numbers found in their statements.
+    
+#     Structure your response exactly like this:
+#     1. 📊 Spending Overview
+#     2. 🎯 Goal Alignment
+#     3. 💡 Budget Critique & Optimization
+#     4. 🚀 Action Items
+
+#     IMPORTANT: RETURN ONLY PURE MARKDOWN TEXT. DO NOT WRAP IN JSON. DO NOT USE BACKTICKS.
+#     """
+
+#     try:
+#         print(system_prompt)
+#         response = client.models.generate_content(
+#             model='gemini-2.5-flash',
+#             contents=system_prompt
+#         )
+        
+#         return {"analysis": response.text}
+        
+#     except Exception as e:
+#         print(f"AI Analysis Error: {e}")
+#         raise HTTPException(status_code=500, detail=str(e))
+    
 @app.post("/analyze-spending")
 async def analyze_spending(request: AnalyzeRequest):
-    # 1. Format the budget context if it exists
     budget_context = ""
     if request.hasBudget and request.currentBudget:
         clean_budget = "\n".join([
@@ -174,22 +239,18 @@ async def analyze_spending(request: AnalyzeRequest):
         THE USER'S CURRENT BUDGET PLAN:
         {clean_budget}
 
-        YOUR TASK: Compare their actual spending from the statements against this budget plan. 
-        Identify specific categories where they are overspending or underspending.
+        YOUR TASK: Compare their actual spending against this budget. Identify specific overspending/underspending. Provide an optimized budget split that adjusts their current categories to be more realistic based on their statements.
         """
     else:
         budget_context = """
         THE USER HAS NO BUDGET PLAN.
-        YOUR TASK: Categorize their spending from the raw statements and highlight their top 3 spending areas. 
-        Suggest a baseline budget breakdown they should adopt to reach their goals.
+        YOUR TASK: Categorize their spending, highlight top areas, and build a brand new baseline budget template for them to adopt.
         """
 
-    # 2. Combine the statements
     statement_text = "\n---\n".join(request.statements)
 
-    # 3. Construct the Master Prompt
     system_prompt = f"""
-    You are an expert, empathetic financial advisor analyzing a client's bank statements.
+    You are an expert financial advisor analyzing a client's bank statements.
 
     CLIENT PROFILE:
     - Net Income: ${request.income} per period.
@@ -201,28 +262,27 @@ async def analyze_spending(request: AnalyzeRequest):
     {statement_text}
 
     INSTRUCTIONS:
-    Write a comprehensive analysis addressing the user directly ("You"). 
-    Format the response using clean Markdown with headers (###), bullet points, and bold text for readability.
-    Do not use generic fluff. Be highly specific using the numbers found in their statements.
-    
-    Structure your response exactly like this:
-    1. 📊 Spending Overview
-    2. 🎯 Goal Alignment
-    3. 💡 Budget Critique & Optimization
-    4. 🚀 Action Items
+    1. Write a markdown analysis addressing the user directly. Structure it with: 📊 Spending Overview, 🎯 Goal Alignment, 💡 Budget Optimization, 🚀 Action Items.
+    2. Create a recommended budget breakdown. The sum of the categories MUST exactly equal ${request.income}.
 
-    IMPORTANT: RETURN ONLY PURE MARKDOWN TEXT. DO NOT WRAP IN JSON. DO NOT USE BACKTICKS.
+    OUTPUT FORMAT:
+    Return ONLY a valid JSON object. 
+    Use "\\n" for newlines in the analysis string and escape all internal quotes (\\").
+    
+    Example Structure:
+    {{
+      "analysis": "### 📊 Spending Overview\\n\\nYou spent...",
+      "recommended_budget": {{"RENT": 1500, "GROCERIES": 400, "SAVINGS": 300}}
+    }}
     """
 
     try:
-        print(system_prompt)
         response = client.models.generate_content(
             model='gemini-2.5-flash',
-            contents=system_prompt
+            contents=system_prompt,
+            config={'response_mime_type': 'application/json'}
         )
-        
-        return {"analysis": response.text}
-        
+        return json.loads(response.text)
     except Exception as e:
         print(f"AI Analysis Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))

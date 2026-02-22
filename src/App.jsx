@@ -328,7 +328,7 @@ export default function BudgetApp() {
   const loadBudget = async () => {
     if (!spreadsheetInput) return setSpreadsheetStatus("⚠️ Enter Link");
     const realId = getSpreadsheetId(spreadsheetInput);
-    setSpreadsheetStatus("⏳ Syncing...");
+    setSpreadsheetStatus("&#x23F3; Syncing...");
 
     try {
       const url = `${API_URL}?spreadsheetId=${realId}&sheetName=${sheetName}`;
@@ -344,8 +344,6 @@ export default function BudgetApp() {
         })));
 
       }
-
-      console.log("371", items); 
 
       // sync from spreadsheet to ui
       if (json.savedData) {
@@ -365,7 +363,6 @@ export default function BudgetApp() {
   const saveBudget = async () => {
     const realId = getSpreadsheetId(spreadsheetInput);
     const shouldSyncDesign = window.confirm("Do you want to apply your category colors to the Google Sheet?");
-    //setSpreadsheetStatus("⏳ Saving...");
     setSavedStatus("⏳ Saving..."); 
     const budgetInfo = BudgetEngine.calculateBudgetIncome(netAnnualIncome, payFrequency, budgetDuration, targetDate);
 
@@ -402,7 +399,6 @@ export default function BudgetApp() {
           syncDesign: shouldSyncDesign
         })
       });
-      //setSpreadsheetStatus("✅ Saved!");
       setSavedStatus("✅ Saved!"); 
     } catch (e) { setSpreadsheetStatus(`Error: ${e.message}`); }
   };
@@ -423,6 +419,7 @@ export default function BudgetApp() {
       );
 
       let finalItems = [];
+      const recurringMap = new Map(); //store recurring expenses
 
       //option 1: either sync/copy from a sheet
       if (copyFromSheet) {
@@ -443,89 +440,91 @@ export default function BudgetApp() {
           }
         }
 
-        finalItems = sourceItems.filter(item => {
+        sourceItems.forEach(item => {
           //query all recurring expenses that fit within the user defined budgeting period 
-          const hasRecurrence = item.recurrenceFreq && item.recurrenceFreq !== "None" && item.recurrenceFreq !== "";
+          const freq = (item.recurrenceFreq || "").trim();
+          const hasRecurrence = freq !== "None" && freq !== "" && freq !== "null";
+          let shouldKeep = false;
 
-          if (item.isActive === false) return false;
           if (hasRecurrence) {
-            return BudgetEngine.shouldIncludeExpense({ ...item, isRecurring: true }, budgetInfo.start, budgetInfo.end);
+            shouldKeep = BudgetEngine.shouldIncludeExpense({ ...item, isRecurring: true, recurrenceFreq: freq }, budgetInfo.start, budgetInfo.end);
+          } else {
+            shouldKeep = true;
           }
-          return true;
+
+          if (shouldKeep) {
+            const key = (item.category || "Unknown").trim().toLowerCase();
+            recurringMap.set(key, item);
+          }
         });
       }
 
       // option b: create budget from scratch but load recurring expenses
-      else {
-        if (availableSheets.length > 0) {
-          console.log(`🔎 Global Scan: Checking ${availableSheets.length} sheets...`);
+      if (availableSheets.length > 0) {
+        console.log(`🔎 Global Scan: Checking ${availableSheets.length} sheets...`);
 
-          const realId = getSpreadsheetId(spreadsheetInput);
-          const recurringMap = new Map();
+        const realId = getSpreadsheetId(spreadsheetInput);
 
-          //query sheets to scan for active, recurring expenses
-          const promises = availableSheets.map(name =>
-            fetch(`${API_URL}?spreadsheetId=${realId}&sheetName=${name}`)
-              .then(res => res.json())
-              .catch(
-                e => ({ items: [] }))
-          );
+        //query sheets to scan for active, recurring expenses
+        const promises = availableSheets.map(name =>
+          fetch(`${API_URL}?spreadsheetId=${realId}&sheetName=${name}`)
+            .then(res => res.json())
+            .catch(e => ({ items: [] }))
+        );
 
-          const results = await Promise.all(promises);
+        const results = await Promise.all(promises);
 
-          console.log(results)
+        //scan for categories with active recurrance and occur within budgeting period
+        results.forEach(json => {
+          if (json.items) {
+            json.items.forEach(item => {
 
-          //scan for categories with active recurrance and occur within budgeting period
-          results.forEach(json => {
-            if (json.items) {
-              json.items.forEach(item => {
+              const freq = (item.recurrenceFreq || "").trim();
+              const hasRecurrence = freq !== "None" && freq !== "" && freq !== "null";
+              const isExplicitlyInactive = item.isActive === false || item.isActive === "FALSE" || item.isActive === "false";
 
-                const hasRecurrence = item.recurrenceFreq && item.recurrenceFreq !== "None" && item.recurrenceFreq !== "";
+              if (
+                !isExplicitlyInactive &&
+                hasRecurrence &&
+                BudgetEngine.shouldIncludeExpense({ ...item, isRecurring: true, recurrenceFreq: freq }, budgetInfo.start, budgetInfo.end)
+              ) {
+                const key = item.category.trim().toLowerCase();
 
-                if (
-                  item.isActive !== false &&
-                  hasRecurrence &&
-                  BudgetEngine.shouldIncludeExpense({ ...item, isRecurring: true }, budgetInfo.start, budgetInfo.end)
-                ) {
-                  const key = item.category.trim().toLowerCase();
+                const newItem = {
+                  ...item,
+                  amount: Number(item.amount) || 0,
+                  isRecurring: true,
+                  isActive: true,
+                  id: `scanned-${Date.now()}-${Math.random()}`
+                };
 
-                  const newItem = {
-                    ...item,
-                    isRecurring: true,
-                    isActive: true,
-                    id: `scanned-${Date.now()}`
-                  };
+                if (!recurringMap.has(key)) {
+                  recurringMap.set(key, newItem);
+                } else {
+                  const existing = recurringMap.get(key);
+                  const newDate = new Date(item.lastPaidDate || '1970-01-01').getTime();
+                  const oldDate = new Date(existing.lastPaidDate || '1970-01-01').getTime();
 
-                  if (!recurringMap.has(key)) {
-                    recurringMap.set(key, newItem);
-                  } else {
-                    const existing = recurringMap.get(key);
-                    const newDate = new Date(item.lastPaidDate || '1970-01-01');
-                    const oldDate = new Date(existing.lastPaidDate || '1970-01-01');
-
-                    if (newDate > oldDate) {
-                      recurringMap.set(key, newItem);
-                    }
+                  if (newDate > oldDate) {
+                    recurringMap.set(key, { ...newItem, amount: existing.amount || newItem.amount });
                   }
                 }
-              });
-            }
-          });
-
-          console.log(results);
-          if (recurringMap.size > 0) {
-            console.log(`Found ${recurringMap.size} unique recurring items due`);
-            finalItems = [...finalItems, ...Array.from(recurringMap.values())];
+              }
+            });
           }
-        }
+        });
       }
+
+      finalItems = Array.from(recurringMap.values());
 
       //update budget
       setItems(finalItems.map((i, idx) => ({
         ...i,
         id: `item-${Date.now()}-${idx}`,
-        isActive: true,
-        isRecurring: !!(i.recurrenceFreq && i.recurrenceFreq !== "None")
+        isActive: i.isActive,
+        isRecurring: !!(i.recurrenceFreq && i.recurrenceFreq !== "None"),
+        amount: Number(i.amount) || 0,
+        spent: 0 
       })));
 
       // save budget
@@ -1068,7 +1067,7 @@ const handleZipChange = (e) => {
               {...provided.dragHandleProps} 
               className="w-12 h-12 flex items-center justify-center border-2 border-yellow-600/20 shadow-md rounded-full cursor-grab active:cursor-grabbing hover:scale-110 transition-transform text-2xl z-20 bg-linear-to-br from-yellow-100 to-yellow-300 text-yellow-800 pointer-events-auto"
             >
-              🪙
+              &#x1FA99;
               
               {snapshot.isDragging && (
                  <div className="bg-emerald-600 text-white font-bold px-4 py-2 rounded-full shadow-2xl fixed z-50 pointer-events-none transform -translate-x-1/2 -translate-y-1/2">
@@ -1102,11 +1101,11 @@ const handleZipChange = (e) => {
     >
       <div className="font-bold uppercase tracking-widest text-gray-400 mb-2 border-b border-gray-700 pb-1">How to Move Money</div>
       <div className="flex items-start gap-2 mb-2">
-        <span className="text-lg leading-none">🪙</span>
+        <span className="text-lg leading-none">&#x1FA99;</span>
         <span className="leading-tight">Drag <b>Coin</b> to add new money from your Income to a Category.</span>
       </div>
       <div className="flex items-start gap-2">
-        <span className="text-lg leading-none">💸</span>
+        <span className="text-lg leading-none">&#x1F4B8;</span>
         <span className="leading-tight">Drag <b>Bill</b> (next to category) to move money between buckets.</span>
       </div>
       <div className="absolute top-full right-1 -mt-1 border-8 border-transparent border-t-gray-900"></div>
@@ -1368,7 +1367,6 @@ const handleZipChange = (e) => {
                   <div className="w-full font-mono uppercase mb-4 h-[400px] lg:h-auto lg:flex-1 min-h-[300px] relative">
                     <div className="absolute inset-0 z-10">
                       <ResponsiveContainer width="100%" height="100%">
-                        {console.log("1394", items)}
                         <PieChart>
                           <Pie
                             data={items.map(i => ({ ...i, amount: Number(i.amount) || 0 }))}
@@ -1473,7 +1471,6 @@ const handleZipChange = (e) => {
                       </span>
                       <span className="text-2xl font-black font-mono text-rose-500">
                         ${items
-                          .filter(i => i.isActive !== false)
                           .reduce((sum, item) => sum + (item.spent || 0), 0)
                           .toLocaleString()}
                       </span>
@@ -1729,6 +1726,7 @@ const handleZipChange = (e) => {
           onClose={() => setShowAnalysisWidget(false)}
           currentItems={items} // Pass the budget items!
           netIncome={effectiveBudgetIncome}
+          onApply={applyAiTemplate}
         />
 
     </div>

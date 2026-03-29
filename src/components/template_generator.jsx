@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 
-const BACKEND_URL = "http://127.0.0.1:8000"; 
-//const BACKEND_URL = "https://budgeting-app-vite.onrender.com"; 
+//const BACKEND_URL = "http://127.0.0.1:8000"; 
+const BACKEND_URL = "https://budgeting-app-vite.onrender.com"; 
 
 const TemplateGenerator = ({ netIncome, budgetDuration, targetDate, onApply, onClose }) => {
   const [formData, setFormData] = useState({
@@ -78,7 +78,7 @@ const TemplateGenerator = ({ netIncome, budgetDuration, targetDate, onApply, onC
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-[90vw] md:max-w-lg max-h-[90vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
+      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-[90vw] md:max-w-2xl max-h-[90vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
         <div className="bg-emerald-600 p-6 text-white flex-shrink-0">
           <h2 className="text-2xl font-bold font-serif">AI Budget Architect</h2>
           <p className="text-emerald-100 text-sm">Planning for your {budgetDuration} cycle.</p>

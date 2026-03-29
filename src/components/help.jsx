@@ -5,11 +5,11 @@ export default function HelpWidget({ isOpen, onClose }) {
 
     const tabs = [
         { id: 'setup', label: 'Sheet Setup'},
-        { id: 'workflow', label: 'Workflow'},
-        { id: 'recurring', label: 'Recurring'},
-        { id: 'transfer', label: 'Moving Money'},
+        { id: 'workflow', label: 'How to Budget'},
+        //{ id: 'recurring', label: 'Setting up Recurring Expenses'},
+        //{ id: 'transfer', label: 'Moving Money'},
         { id: 'colors', label: 'Color Guide' },
-        { id: 'widgets', label: 'Widgets' },
+        { id: 'widgets', label: 'Helper Widgets' },
     ];
 
     if (!isOpen) return null;
@@ -47,7 +47,7 @@ export default function HelpWidget({ isOpen, onClose }) {
                             <button
                                 key={tab.id}
                                 onClick={() => setActiveTab(tab.id)}
-                                className={`flex-1 py-3 md:py-4 px-4 text-xs md:text-sm font-mono font-bold uppercase tracking-wider whitespace-nowrap transition-colors flex items-center justify-center gap-2 snap-start
+                                className={`flex-1 py-3 md:py-4 px-4 text-xs md:text-sm font-mono font-bold uppercase tracking-wider whitespace-nowrap transition-colors flex border-r-2 border-r-[#0f2a1d] items-center justify-center gap-2 snap-start
                 ${activeTab === tab.id
                                         ? 'text-emerald-600 dark:text-emerald-400 border-b-4 border-emerald-500 bg-white dark:bg-gray-800'
                                         : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-200'
@@ -158,9 +158,10 @@ export default function HelpWidget({ isOpen, onClose }) {
 
                     {/* tab 2: workflow*/}
                     {activeTab === 'workflow' && (
-                        <div className="space-y-6 md:space-y-8 animate-in fade-in">
+                        <div className="space-y-6 md:space-y-8 animate-in fade-in flex items-center justify-center flex-col">
 
                             {/* income freq */}
+                            <div className="w-full flex items-start">
                             <div className="bg-emerald-50 dark:bg-emerald-900/20 p-4 rounded-2xl border border-emerald-100 dark:border-emerald-800 flex items-start gap-4">
                                 <div className="text-2xl">&#x1F4B0;</div>
                                 <div>
@@ -174,6 +175,7 @@ export default function HelpWidget({ isOpen, onClose }) {
                                         <span className="px-2 py-1 bg-white dark:bg-gray-800 rounded border text-[10px] font-mono text-gray-600 dark:text-gray-300">/ Week</span>
                                     </div>
                                 </div>
+                            </div>
                             </div>
 
                             <h3 className="text-lg md:text-xl font-bold font-serif text-center mb-4 md:mb-6">Choose your Workflow</h3>
@@ -227,12 +229,9 @@ export default function HelpWidget({ isOpen, onClose }) {
                                 </div>
                             </div>
 
-                        </div>
-                    )}
+                             <hr class="border-t-2 border-dashed border-gray-600 w-[85%]" />
 
-                    {/* tab 3: recurrance*/}
-                    {activeTab === 'recurring' && (
-                        <div className="space-y-6 animate-in fade-in">
+                            <div className="space-y-6 animate-in fade-in">
                             <div className="text-center mb-6">
                                 <h3 className="text-xl font-bold font-serif mb-2">Setting up Recurring Expenses</h3>
                                 <p className="text-sm text-gray-500">Configure what expenses are tracked using Advanced Settings.</p>
@@ -269,11 +268,16 @@ export default function HelpWidget({ isOpen, onClose }) {
                                 To pause a recurring expense without deleting the data, simply <b>Toggle it OFF</b>. It will turn gray. The system will ignore it until you toggle it back ON.
                             </div>
                         </div>
-                    )}
 
-                    {/* tab 4: transfers */}
-                    {activeTab === 'transfer' && (
+                        <hr class="border-t-2 border-dashed border-gray-600 w-[85%]" />
+
                         <div className="space-y-6 animate-in fade-in">
+                            
+<div className="text-center mb-6">
+                                <h3 className="text-xl font-bold font-serif mb-2">Transferring Money Between Categories</h3>
+                                <p className="text-sm text-gray-500">Transfer money between categories for streamlined budget planning. </p>
+                            </div>
+
                             <div className="text-center p-4 md:p-6 bg-gray-50 dark:bg-gray-900 rounded-2xl border-2 border-dashed border-gray-300 dark:border-gray-600">
                                 <h3 className="font-bold text-base md:text-lg mb-4 font-serif">Drag & Drop Magic</h3>
 
@@ -296,7 +300,11 @@ export default function HelpWidget({ isOpen, onClose }) {
                                 Example: Type "50" &#x2192; Drag Coin &#x2192; Adds $50 to that category or  Type "50" &#x2192; Drag Dollar from one category to another category &#x2192; Adds $50 to target category + Deduct $50 from source category.
                             </p>
                         </div>
+
+
+                        </div>
                     )}
+
 
                     {/*tab 5: colors */}
                     {activeTab === 'colors' && (
@@ -333,7 +341,7 @@ export default function HelpWidget({ isOpen, onClose }) {
                     {activeTab === 'widgets' && (
                         <div className="space-y-6 animate-in fade-in">
                             <div className="text-center mb-6">
-                                <h3 className="text-xl font-bold font-serif mb-2">App Widgets</h3>
+                                <h3 className="text-xl font-bold font-serif mb-2">Helper Widgets</h3>
                                 <p className="text-sm text-gray-500">Powerful tools accessible from the bottom right menu.</p>
                             </div>
 

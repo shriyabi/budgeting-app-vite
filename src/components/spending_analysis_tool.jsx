@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 
-const BACKEND_URL = "http://127.0.0.1:8000"; 
-//const BACKEND_URL = "https://budgeting-app-vite.onrender.com"; 
+//const BACKEND_URL = "http://127.0.0.1:8000"; 
+const BACKEND_URL = "https://budgeting-app-vite.onrender.com"; 
 
 // --- PARSING FUNCTION ---
 const parseBankText = (text) => {

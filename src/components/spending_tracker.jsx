@@ -177,7 +177,7 @@ export default function SpendingTracker({ isOpen, onClose, categories, onImport 
       <div className="relative bg-white dark:bg-gray-800 w-full max-w-2xl rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh] animate-in fade-in zoom-in-95 duration-200">
         
         <div className="bg-emerald-600 p-6 text-white flex justify-between items-center shrink-0">
-            <h2 className="text-2xl font-bold font-serif">Smart Import</h2>
+            <h2 className="text-2xl font-bold font-serif">Spending Tracker</h2>
             <button onClick={onClose} className="text-white/70 hover:text-white text-2xl">&times;</button>
         </div>
 
@@ -185,11 +185,11 @@ export default function SpendingTracker({ isOpen, onClose, categories, onImport 
           
           {step === 'input' && (
             <div className="space-y-4">
-              <p className="text-xs text-gray-500">Paste transactions directly from your bank website.</p>
+              <p className="text-xs text-gray-500"> Paste the list of transactions during the intended period of time from bank statements. Beware of personal details. </p>
               <textarea className="w-full h-48 p-4 bg-gray-50 dark:bg-gray-900 border-2 border-dashed border-gray-300 dark:border-gray-700 rounded-xl font-mono text-xs focus:ring-2 focus:ring-emerald-500 outline-none" 
-                placeholder={`STORE [price]`}
+                placeholder={`Paste list of transactions here.`}
                 value={rawText} onChange={(e) => setRawText(e.target.value)} />
-              <button onClick={handleParse} disabled={!rawText} className="w-full py-4 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl shadow-lg">1. Parse Data</button>
+              <button onClick={handleParse} disabled={!rawText} className="w-full py-4 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl shadow-lg">Parse Transactions</button>
             </div>
           )}
 

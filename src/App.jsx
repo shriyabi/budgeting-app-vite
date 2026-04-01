@@ -207,7 +207,7 @@ export default function BudgetApp() {
   
   // Budget calcutations 
   // 1. calc net income (default: annual)
-  const netAnnualIncome = useMemo(() => {
+  const { netAnnualIncome, federalTaxAmount, localTaxAmount, stateTaxAmount } = useMemo(() => {
     let grossSalary = Number(salary);
 
     if (salaryFrequency === 'Monthly') grossSalary *= 12;
@@ -228,16 +228,22 @@ export default function BudgetApp() {
     }
 
     const localTaxAmount = applyLocalTax ? grossAnnual * (localTaxRate / 100) : 0;
+    
+    const calculatedStateTax = grossAnnual * (STATE_TAX_RATES[stateCode] || 0.00);
 
     const totalTax = federalTax + 
       (Math.min(grossAnnual, SOCIAL_SECURITY_CAP) * 0.062) + 
       (grossAnnual * 0.0145) + 
-      (grossAnnual * (STATE_TAX_RATES[stateCode] || 0.00)) + 
+      calculatedStateTax +
       localTaxAmount;
 
-    return Math.floor(grossAnnual - totalTax);
-  }, [salary, bonus, stateCode, salaryFrequency, applyLocalTax, localTaxRate]); // Added dependencies
-
+    return {
+      netAnnualIncome: Math.floor(grossAnnual - totalTax),
+      federalTaxAmount: Math.floor(federalTax),
+      localTaxAmount: Math.floor(localTaxAmount),
+      stateTaxAmount: Math.floor(calculatedStateTax)
+    };
+  }, [salary, bonus, stateCode, salaryFrequency, applyLocalTax, localTaxRate]);
   const effectiveBudgetIncome = useMemo(() => {
     return Math.floor(BudgetEngine.calculateBudgetIncome(
       netAnnualIncome,
@@ -296,39 +302,62 @@ export default function BudgetApp() {
 
   const onDragEnd = (result) => {
     const { source, destination } = result;
-    if (!destination) return;
+    if (!destination) {
+      setTransferStatus("❌ Transfer Failed: Dropped outside a category");
+      return;
+    }
     const amt = Number(transferAmount);
 
+    // Scenario 1: Big Coin (unallocated source)
     if (source.droppableId === 'unallocated-source') {
+      const targetCategory = items[destination.index]?.category || "Category";
+      
       setItems(prev => {
-        const copy = [...prev];
-        copy[destination.index] = { ...copy[destination.index], amount: copy[destination.index].amount + amt };
-        return copy;
+      const copy = [...prev];
+      if (copy[destination.index]) {
+        copy[destination.index] = { 
+          ...copy[destination.index], 
+          amount: (Number(copy[destination.index].amount) || 0) + amt 
+        };
+      }
+      return copy;
       });
-      return;
+      setTransferStatus(`✅ Budgeted $${amt.toLocaleString()} to ${targetCategory}`);
+    return;
     }
 
     if (source.droppableId === 'budget-list' && destination.droppableId === 'budget-list') {
+      
       if (source.index === destination.index) {
-        setTransferStatus(`❌ Transfer failed`);
+        setTransferStatus("⚠️ Transfer Canceled: Dropped on same category");
         return;
       }
 
+      const sourceName = items[source.index]?.category;
+      const destName = items[destination.index]?.category;
+      
       // Moving transfer amount money to another category 
       setItems(prev => {
         const copy = [...prev];
-        copy[source.index] = { ...copy[source.index], amount: copy[source.index].amount - amt };
-        copy[destination.index] = { ...copy[destination.index], amount: copy[destination.index].amount + amt };
+        const currentSrcAmt = copy[source.index].amount;
+        copy[source.index] = { ...copy[source.index], amount: Math.max(0, currentSrcAmt - amt) };
+        copy[destination.index] = { ...copy[destination.index], amount: (copy[destination.index].amount || 0) + amt };
         return copy;
       });
-      setTransferStatus(`✅ Moved $${amt}`);
+
+      setTransferStatus(`💸 Moved $${amt.toLocaleString()} from ${sourceName} to ${destName}`);
     }
+
+    console.log("333", transferStatus); 
+    setTimeout(() => {
+  setTransferStatus("");
+}, 4000); // clear transferStatus after 4 sec
   };
 
   const loadBudget = async () => {
     if (!spreadsheetInput) return setSpreadsheetStatus("⚠️ Enter Link");
     const realId = getSpreadsheetId(spreadsheetInput);
-    setSpreadsheetStatus("&#x23F3; Syncing...");
+    setSpreadsheetStatus("⏳ Syncing...");
 
     try {
       const url = `${API_URL}?spreadsheetId=${realId}&sheetName=${sheetName}`;
@@ -355,6 +384,11 @@ export default function BudgetApp() {
         if (json.savedData.budgetDuration) setBudgetDuration(json.savedData.budgetDuration);
         if (json.savedData.targetDate) setTargetDate(json.savedData.targetDate);
         if (json.savedData.salaryFrequency) setSalaryFrequency(json.savedData.salaryFrequency);
+        if (json.savedData.applyLocalTax !== undefined) setApplyLocalTax(json.savedData.applyLocalTax);
+        if (json.savedData.zipCode) {
+          setZipCode(json.savedData.zipCode);
+          setLocalTaxRate(getEstimatedLocalTax(json.savedData.zipCode)); 
+        }
       }
       setSpreadsheetStatus("✅ Loaded!");
     } catch (e) { setSpreadsheetStatus(`Error: ${e.message}`); }
@@ -364,7 +398,49 @@ export default function BudgetApp() {
     const realId = getSpreadsheetId(spreadsheetInput);
     const shouldSyncDesign = window.confirm("Do you want to apply your category colors to the Google Sheet?");
     setSavedStatus("⏳ Saving..."); 
-    const budgetInfo = BudgetEngine.calculateBudgetIncome(netAnnualIncome, payFrequency, budgetDuration, targetDate);
+
+    // 1. Establish the Budget Range
+    const start = new Date(targetDate + "T00:00:00");
+    let end = new Date(start);
+
+    if (budgetDuration === 'Bi-Weekly') {
+      end.setDate(start.getDate() + 13);
+    } else if (budgetDuration === 'Weekly') {
+      end.setDate(start.getDate() + 6);
+    } else if (budgetDuration === 'Monthly') {
+      end = new Date(start.getFullYear(), start.getMonth() + 1, 0);
+    } else if (budgetDuration === 'Annual') {
+      end.setFullYear(start.getFullYear() + 1);
+      end.setDate(end.getDate() - 1);
+    }
+    
+    // The "Start to End" range for Row 1
+    const formattedBudgetPeriod = `${start.toLocaleDateString()} to ${end.toLocaleDateString()}`;
+
+    // 2. GENERATE PAYDAY LIST: Find every payday within the duration
+    let paydays = [];
+    let currentPayday = new Date(start);
+    const budgetEnd = new Date(end);
+    
+    let safety = 0; // Prevent infinite loops
+    while (currentPayday <= budgetEnd && safety < 100) {
+      paydays.push(currentPayday.toLocaleDateString());
+
+      if (payFrequency === 'Weekly') {
+        currentPayday.setDate(currentPayday.getDate() + 7);
+      } else if (payFrequency === 'Bi-Weekly') {
+        currentPayday.setDate(currentPayday.getDate() + 14);
+      } else if (payFrequency === 'Monthly') {
+        currentPayday.setMonth(currentPayday.getMonth() + 1);
+      } else {
+        // If frequency is Annual or anything else, just list the start date and break
+        if (paydays.length === 1) break;
+      }
+      safety++;
+    }
+
+    // This creates the list: "4/1/2026, 4/15/2026..."
+    const payPeriodDatesList = paydays.join(", ");
 
     try {
       await fetch(API_URL, {
@@ -372,19 +448,26 @@ export default function BudgetApp() {
         body: JSON.stringify({
           spreadsheetId: realId,
           sheetName: sheetName.trim() || "MyBudget",
-          budgetPeriod: budgetInfo.label,
+          budgetPeriod: formattedBudgetPeriod, 
+          payPeriodDates: payPeriodDatesList,
           netMonthlyIncome: effectiveBudgetIncome,
           incomeData: {
-            salary, bonus, state: stateCode,
-            payFrequency, budgetDuration, targetDate,
-            salaryFrequency
+            salary, 
+            bonus, 
+            state: stateCode,
+            payFrequency, 
+            budgetDuration, 
+            targetDate,
+            salaryFrequency,
+            federalTax: federalTaxAmount,
+            stateTax: stateTaxAmount,
+            localTax: localTaxAmount,
+            applyLocalTax: applyLocalTax, 
+            zipCode: zipCode
           },
 
-          //intgerate spending gtracking
           items: items.map(item => {
-            const hasRecurrence = item.recurrenceFreq && item.recurrenceFreq.trim() !== "";
-            console.log("410", item); 
-            console.log("411", typeof item.amount); 
+            const hasRecurrence = item.recurrenceFreq && item.recurrenceFreq.trim() !== "" && item.recurrenceFreq !== "None";
             return {
               category: item.category,
               amount: item.amount,
@@ -400,7 +483,77 @@ export default function BudgetApp() {
         })
       });
       setSavedStatus("✅ Saved!"); 
-    } catch (e) { setSpreadsheetStatus(`Error: ${e.message}`); }
+    } catch (e) { 
+      setSavedStatus(`❌ Error`);
+      setSpreadsheetStatus(`Error: ${e.message}`); 
+    }
+
+
+    // const budgetInfo = BudgetEngine.calculateBudgetIncome(netAnnualIncome, payFrequency, budgetDuration, targetDate);
+    // const payPeriodDates = `${budgetInfo.start.toLocaleDateString()} to ${budgetInfo.end.toLocaleDateString()}`;
+    
+    // const start = new Date(targetDate + "T00:00:00");
+    // let end = new Date(start);
+
+    // // 2. Logic based on budgetDuration state
+    // if (budgetDuration === 'Bi-Weekly') {
+    //   end.setDate(start.getDate() + 13);
+    // } else if (budgetDuration === 'Weekly') {
+    //   end.setDate(start.getDate() + 6);
+    // } else if (budgetDuration === 'Monthly') {
+    //   end = new Date(start.getFullYear(), start.getMonth() + 1, 0);
+    // } else if (budgetDuration === 'Annual') {
+    //   end.setFullYear(start.getFullYear() + 1);
+    //   end.setDate(end.getDate() - 1);
+    // }
+
+    // const formattedBudgetPeriod = `${start.toLocaleDateString()} to ${end.toLocaleDateString()}`;
+
+    // try {
+    //   await fetch(API_URL, {
+    //     method: "POST",
+    //     body: JSON.stringify({
+    //       spreadsheetId: realId,
+    //       sheetName: sheetName.trim() || "MyBudget",
+    //       budgetPeriod: formattedBudgetPeriod, 
+    //       payPeriodDates: payPeriodDates,
+    //       netMonthlyIncome: effectiveBudgetIncome,
+    //       incomeData: {
+    //         salary, 
+    //         bonus, 
+    //         state: stateCode,
+    //         payFrequency, 
+    //         budgetDuration, 
+    //         targetDate,
+    //         salaryFrequency,
+    //         federalTax: federalTaxAmount,
+    //         stateTax: stateTaxAmount,
+    //         localTax: localTaxAmount,
+    //         applyLocalTax: applyLocalTax, 
+    //         zipCode: zipCode
+    //       },
+
+    //       //intgerate spending gtracking
+    //       items: items.map(item => {
+    //         const hasRecurrence = item.recurrenceFreq && item.recurrenceFreq.trim() !== "";
+    //         console.log("410", item); 
+    //         console.log("411", typeof item.amount); 
+    //         return {
+    //           category: item.category,
+    //           amount: item.amount,
+    //           recurrenceFreq: item.recurrenceFreq,
+    //           lastPaidDate: item.lastPaidDate,
+    //           isActive: hasRecurrence,
+    //           spent: item.spent || 0,
+    //           color: item.color
+    //         }
+    //       }),
+
+    //       syncDesign: shouldSyncDesign
+    //     })
+    //   });
+    //   setSavedStatus("✅ Saved!"); 
+    // } catch (e) { setSpreadsheetStatus(`Error: ${e.message}`); }
   };
 
   const handleGenerateBudget = async () => {
@@ -861,7 +1014,7 @@ const handleZipChange = (e) => {
         </div>
 
         {/* Salary/Tax Calculator */}
-        <div className="bg-linear-to-br from-[#1a4731] via-[#0f5132] to-[#064e3b] p-8 rounded-3xl shadow-xl shadow-[#064e3b]/20 mb-10 text-white relative overflow-hidden border-2 border-[#4ade80]/20 transition-all duration-300">
+        <div className="bg-linear-to-br from-[#1a4731] via-[#0f5132] to-[#064e3b] p-8 rounded-3xl shadow-xl shadow-[#064e3b]/20 mb-10 text-white relative border-2 border-[#4ade80]/20 transition-all duration-300">
 
           {/* Background Effects */}
           <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-white/5 via-transparent to-transparent -mr-32 -mt-32 pointer-events-none opacity-50 blur-2xl"></div>
@@ -936,18 +1089,24 @@ const handleZipChange = (e) => {
                 </div>
                 
                 <div className="flex items-center gap-1.5">
-                  <label className="text-[10px] text-[#86efac] font-bold uppercase tracking-widest font-mono opacity-80 cursor-pointer group-hover:text-white transition-colors select-none">
-                    Local Tax
-                  </label>
-                  
-                  {/* loacl tax zip code info */}
-                  <div className="group/tooltip relative">
-                     <div className="w-4 h-4 rounded-full border border-emerald-500/30 text-emerald-500/50 flex items-center justify-center text-[9px] font-mono cursor-help hover:bg-emerald-500/20 hover:text-emerald-300 hover:border-emerald-400 transition-all">?</div>
-                     <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-48 bg-[#022c22] border border-[#34d399]/20 text-emerald-100 text-[10px] p-2 rounded-lg opacity-0 group-hover/tooltip:opacity-100 pointer-events-none transition-all shadow-xl z-50">
-                       Check this if you live in a city with extra income tax (e.g. NYC, Yonkers, MD counties).
-                     </div>
-                  </div>
-                </div>
+  <label className="text-[10px] text-[#86efac] font-bold uppercase tracking-widest font-mono opacity-80 cursor-pointer group-hover:text-white transition-colors select-none">
+    Local Tax
+  </label>
+  
+  <div className="relative flex items-center">
+     <button 
+       type="button"
+       onClick={(e) => e.stopPropagation()} 
+       className="peer w-4 h-4 rounded-full border border-emerald-500/30 text-emerald-500/50 flex items-center justify-center text-[9px] font-mono cursor-pointer hover:bg-emerald-500/20 hover:text-emerald-300 hover:border-emerald-400 focus:bg-emerald-500/20 focus:text-emerald-300 focus:border-emerald-400 focus:outline-none transition-all touch-manipulation"
+     >
+       ?
+     </button>
+     <div className="absolute z-[99999] bottom-full left-1/2 -translate-x-1/2 mb-2 w-35 bg-[#022c22] border border-[#34d399]/20 text-emerald-100 text-[10px] p-2 rounded-lg opacity-0 peer-focus:opacity-100 [@media(hover:hover)]:peer-hover:opacity-100 pointer-events-none transition-all shadow-xl">
+       Check this if you live in a city with extra income tax (e.g. NYC, Yonkers, MD counties).
+     </div>
+
+  </div>
+</div>
               </div>
 
               {/* zip code input */}
@@ -1482,6 +1641,10 @@ const handleZipChange = (e) => {
                 )}
 
                 {/* Save */}
+                <div className="w-full text-center mt-2 mb-4 font-bold text-emerald-600 dark:text-emerald-400 text-sm uppercase h-4">
+            {savedStatus}
+          </div>
+
                 <button
                   onClick={saveBudget}
                   className="w-full font-mono uppercase py-4 bg-gray-900 hover:bg-black dark:bg-emerald-600 dark:hover:bg-emerald-700 text-white text-lg font-bold rounded-2xl shadow-xl mt-2 transition-all active:scale-[0.98] flex items-center justify-center gap-2"
@@ -1489,9 +1652,7 @@ const handleZipChange = (e) => {
                   <span>Save Changes</span>
                 </button>
 
-                <div className="w-full text-center mt-4 font-bold text-emerald-600 dark:text-emerald-400 text-sm uppercase h-4">
-            {savedStatus}
-          </div>
+                
               </div>
             </div>
 

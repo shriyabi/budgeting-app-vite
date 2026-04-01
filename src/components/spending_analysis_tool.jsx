@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 
 //const BACKEND_URL = "http://127.0.0.1:8000"; 
-const BACKEND_URL = "https://budgeting-app-vite.onrender.com"; 
+let BACKEND_URL = import.meta.BACKEND_URL; 
 
 // --- PARSING FUNCTION ---
 const parseBankText = (text) => {
@@ -108,7 +108,7 @@ export default function SpendingAnalyzer({ isOpen, onClose, currentItems = [], n
       }
     } catch (err) {
       console.error(err);
-      setAiResponse("❌ Error connecting to AI Architect. Ensure your backend is running.");
+      setAiResponse("Error connecting to AI Architect. Ensure your backend is running.");
     } finally {
       setLoading(false);
     }
@@ -118,7 +118,7 @@ export default function SpendingAnalyzer({ isOpen, onClose, currentItems = [], n
     const subject = encodeURIComponent("My Financial Analysis & Budget");
     let bodyText = aiResponse;
     if (recommendedBudget) {
-       bodyText += "\n\n=== RECOMMENDED BUDGET ===\n";
+       bodyText += "\n\nRecommended Budget \n";
        Object.entries(recommendedBudget).forEach(([cat, amt]) => {
          bodyText += `${cat}: $${amt}\n`;
        });
